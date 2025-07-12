@@ -85,7 +85,11 @@ export default function RegistroScreen() {
           return;
         }
 
-        await AsyncStorage.setItem('userName', name);
+        console.log('Respuesta al registrar:', data);
+
+        await AsyncStorage.setItem('userId', data.usuario.id);
+        await AsyncStorage.setItem('userName', data.usuario.nombre);
+        await AsyncStorage.setItem('userRole', data.usuario.rol);
         Alert.alert('¡Registro exitoso!', `Bienvenido/a, ${name}`, [
           {
             text: 'Ir a Login',

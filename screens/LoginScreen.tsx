@@ -1,14 +1,5 @@
 import React, { useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert
-} from 'react-native';
+import {View, Text, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Alert} from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -55,6 +46,8 @@ export default function LoginScreen() {
       }
 
       const { usuario } = data;
+      console.log('Rol del usuario:', usuario.rol);
+      
       await AsyncStorage.setItem('userId', usuario.id);
       await AsyncStorage.setItem('userName', usuario.nombre);
       await AsyncStorage.setItem('userRole', usuario.rol);

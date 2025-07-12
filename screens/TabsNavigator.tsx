@@ -6,20 +6,40 @@ import QRScannerScreen from './QRScannerScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, View } from 'react-native';
 
 const Tab = createBottomTabNavigator();
 
 export default function TabsNavigator({ route }: any) {
   const { userName } = route.params;
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchRole = async () => {
-      const role = await AsyncStorage.getItem('userRole');
-      setUserRole(role);
+      try {
+        const role = await AsyncStorage.getItem('userRole');
+        setUserRole(role);
+      } catch (error) {
+        console.error("Error al obtener userRole:", error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchRole();
   }, []);
+
+  if (!userRole) {
+    return null;
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#2c3e50" />
+      </View>
+    );
+  }
 
   return (
     <Tab.Navigator
