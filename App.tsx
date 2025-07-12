@@ -12,11 +12,20 @@ import CrearVisitanteScreen from "./screens/CrearVisitanteScreen";
 import QRGeneratorScreen from "./screens/QRGeneratorScreen";
 
 const linking = {
-  prefixes: [Linking.createURL('/'), 'neighnet://'],
+  prefixes: ["neighnet2://"], // Este debe coincidir con el scheme en app.json
   config: {
     screens: {
-      ResetPassword: 'reset-password',
+      ResetPassword: "reset-password",
     },
+  },
+  async getInitialURL() {
+    try {
+      const url = await Linking.getInitialURL();
+      return url;
+    } catch (e) {
+      console.error("Error getting initial URL:", e);
+      return null;
+    }
   },
 };
 
@@ -47,24 +56,24 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-         name="ResetPassword"
-         component={ForgotPasswordScreen}
-         options={{ headerShown: false }}
+          name="ResetPassword"
+          component={ForgotPasswordScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
-        name="Visitantes" 
-        component={VisitantesScreen}
-        options={{ headerShown: false }}
+          name="Visitantes"
+          component={VisitantesScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
-        name="CrearVisitante" 
-        component={CrearVisitanteScreen}
-        options={{ headerShown: false }}
+          name="CrearVisitante"
+          component={CrearVisitanteScreen}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
-        name="QRGenerator" 
-        component={QRGeneratorScreen}
-        options={{ headerShown: false }}
+          name="QRGenerator"
+          component={QRGeneratorScreen}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>

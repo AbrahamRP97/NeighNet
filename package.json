@@ -23,7 +23,9 @@
     "react": "19.0.0",
     "react-native": "0.79.5",
     "react-native-qrcode-svg": "^6.3.15",
-    "react-native-view-shot": "4.0.3"
+    "react-native-view-shot": "4.0.3",
+    "expo-dev-client": "~5.2.4",
+    "react-native-safe-area-context": "5.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
