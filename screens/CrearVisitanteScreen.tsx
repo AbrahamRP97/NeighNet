@@ -9,8 +9,12 @@ import { VISITANTES_BASE_URL } from '../api';
 export default function CrearVisitanteScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
+
+  // 🔐 Validación para producción:
+  // Si el visitante viene por parámetro, lo guardamos. Si no viene, no pasa nada.
   const visitante = route.params?.visitante;
 
+  // Si viene visitante, inicializamos campos con su info. Si no, los dejamos vacíos.
   const [nombre, setNombre] = useState(visitante?.nombre || '');
   const [identidad, setIdentidad] = useState(visitante?.identidad || '');
   const [placa, setPlaca] = useState(visitante?.placa || '');
@@ -19,17 +23,20 @@ export default function CrearVisitanteScreen() {
   const [color, setColor] = useState(visitante?.color_vehiculo || '');
 
   const handleGuardar = async () => {
+    // Validación de campos obligatorios
     if (!nombre || !identidad || !placa || !marca || !modelo || !color) {
       Alert.alert('Todos los campos son obligatorios');
       return;
     }
 
+    // Intentamos obtener el ID del usuario desde AsyncStorage
     const residenteId = await AsyncStorage.getItem('userId');
     if (!residenteId) {
       Alert.alert('Error', 'No se pudo obtener tu ID');
       return;
     }
 
+    // 🔐 Lógica condicional: si viene visitante, es edición (PUT); si no, es creación (POST)
     const url = visitante
       ? `${VISITANTES_BASE_URL}/${visitante.id}`
       : VISITANTES_BASE_URL;
@@ -55,6 +62,7 @@ export default function CrearVisitanteScreen() {
         body: JSON.stringify(payload),
       });
 
+      // 🔐 Procesamos la respuesta manualmente por si no viene como JSON
       const text = await response.text();
       console.log('Respuesta cruda:', text);
 
@@ -90,6 +98,8 @@ export default function CrearVisitanteScreen() {
       <Text style={styles.title}>
         {visitante ? 'Editar visitante' : 'Agregar visitante'}
       </Text>
+
+      {/* Campos del formulario */}
       <CustomInput
         placeholder="Nombre completo"
         value={nombre}
@@ -122,6 +132,7 @@ export default function CrearVisitanteScreen() {
         onChangeText={setColor}
       />
 
+      {/* Botones */}
       <CustomButton
         title={visitante ? 'Actualizar visitante' : 'Registrar visitante'}
         onPress={handleGuardar}

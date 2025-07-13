@@ -7,17 +7,39 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
+import NetInfo from '@react-native-community/netinfo';
 
 export default function QRGeneratorScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const visitante = route.params?.visitante;
 
+  if (!visitante) {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Error</Text>
+      <Text style={styles.description}>No se ha seleccionado un visitante. Por favor, vuelve atrás.</Text>
+      <CustomButton title="Volver" onPress={() => navigation.goBack()} />
+    </View>
+  );
+}
+
   const [qrValue, setQrValue] = useState('');
   const [nombre, setNombre] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [mensajeQR, setMensajeQR] = useState('');
   const badgeRef = useRef<View>(null);
+
+   // 🔐 Verifica conexión
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (!state.isConnected) {
+        Alert.alert('Sin conexión', 'No tienes conexión a internet.');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     const cargarDatos = async () => {
@@ -126,5 +148,6 @@ const styles = StyleSheet.create({
   badge: { padding: 20, borderRadius: 12, backgroundColor: '#fff', borderWidth: 2, borderColor: '#1e90ff', alignItems: 'center' },
   logo: { width: 60, height: 60, resizeMode: 'contain' },
   badgeTitle: { fontSize: 20, fontWeight: 'bold', color: '#1e90ff', marginVertical: 8 },
+  description: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 20 },
   badgeMessage: { marginTop: 12, fontSize: 14, color: '#333', textAlign: 'center' },
 });

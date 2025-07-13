@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import { CameraView } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { CameraType } from 'expo-image-picker/build/ImagePicker.types';
 import { VIGILANCIA_BASE_URL } from '../api';
+import NetInfo from '@react-native-community/netinfo';
 
 type BarCodeScannedType = {
   type: string;
@@ -54,6 +55,8 @@ export default function QRScannerScreen() {
     console.log('QR raw:', data);
 
     let qrData;
+
+    // 🔐 Protección: intentar parsear el JSON del QR
     try {
       qrData = JSON.parse(data.trim());
     } catch (err) {
@@ -64,6 +67,7 @@ export default function QRScannerScreen() {
       return;
     }
 
+    // 🔐 Validación de estructura del QR
     if (!qrData.idUnico || !qrData.visitanteId) {
       console.warn('QR incompleto:', qrData);
       Alert.alert('QR inválido', 'El código no tiene la información esperada');
@@ -72,6 +76,7 @@ export default function QRScannerScreen() {
       return;
     }
 
+    // 🔐 Envío seguro de datos al backend
     try {
       const response = await fetch(`${VIGILANCIA_BASE_URL}/scan`, {
         method: 'POST',
@@ -93,6 +98,7 @@ export default function QRScannerScreen() {
         } else if (result.message.includes('Salida')) {
           title = '🚪 Salida registrada';
         }
+
         Alert.alert(title, result.message);
       }
     } catch (error) {
@@ -100,13 +106,25 @@ export default function QRScannerScreen() {
       Alert.alert('Error', 'No se pudo conectar al servidor');
     } finally {
       setLoading(false);
-      setTimeout(() => setScanned(false), 3000); // Permitir nuevo escaneo tras 3 seg
+      setTimeout(() => setScanned(false), 3000); // permitir nuevo escaneo después de 3s
     }
   };
+
+  useEffect(() => {
+  const unsubscribe = NetInfo.addEventListener((state) => {
+    // 🔐 Verificamos si hay conexión activa
+    if (!state.isConnected) {
+      Alert.alert('Sin conexión', 'No tienes conexión a internet.');
+    }
+  });
+
+  return () => unsubscribe(); // Limpieza al salir de la pantalla
+}, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>📸 Escáner de Código QR</Text>
+
       <View style={styles.cameraContainer}>
         {loading && (
           <View style={styles.loadingOverlay}>
@@ -114,6 +132,7 @@ export default function QRScannerScreen() {
             <Text style={styles.loadingText}>Procesando escaneo...</Text>
           </View>
         )}
+
         <CameraView
           ref={cameraRef}
           style={styles.camera}
@@ -121,6 +140,7 @@ export default function QRScannerScreen() {
           onBarcodeScanned={scanned || loading ? undefined : handleBarCodeScanned}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         />
+
         <View style={styles.focusBox} />
       </View>
 

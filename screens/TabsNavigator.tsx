@@ -6,14 +6,27 @@ import QRScannerScreen from './QRScannerScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text } from 'react-native';
+import CustomButton from '../components/CustomButton'; // 🔐 Necesario para botón de volver
 
 const Tab = createBottomTabNavigator();
 
-export default function TabsNavigator({ route }: any) {
-  const { userName } = route.params;
+export default function TabsNavigator({ route, navigation }: any) {
+  const { userName } = route.params || {}; // 🔐 Protección: evitar crash si no viene userName
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // 🔐 Validación crítica: si no viene userName, no renderizar tabs
+  if (!userName) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 16, color: '#e74c3c', textAlign: 'center', marginBottom: 16 }}>
+          Error: No se pudo obtener tu nombre de usuario. Por favor vuelve a iniciar sesión.
+        </Text>
+        <CustomButton title="Volver al login" onPress={() => navigation.replace('Login')} />
+      </View>
+    );
+  }
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -21,17 +34,13 @@ export default function TabsNavigator({ route }: any) {
         const role = await AsyncStorage.getItem('userRole');
         setUserRole(role);
       } catch (error) {
-        console.error("Error al obtener userRole:", error);
+        console.error('Error al obtener userRole:', error);
       } finally {
         setLoading(false);
       }
     };
     fetchRole();
   }, []);
-
-  if (!userRole) {
-    return null;
-  }
 
   if (loading) {
     return (

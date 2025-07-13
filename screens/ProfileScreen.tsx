@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
 import { Feather } from '@expo/vector-icons';
 import { AUTH_BASE_URL } from '../api';
+import NetInfo from '@react-native-community/netinfo';
 
 interface Props {
   userName: string;
@@ -31,9 +32,24 @@ export default function ProfileScreen({ userName }: Props) {
   const [editando, setEditando] = useState(false);
 
   useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (!state.isConnected) {
+        Alert.alert('Sin conexión', 'No tienes conexión a internet.');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     const cargarDatos = async () => {
       const savedId = await AsyncStorage.getItem('userId');
-      if (!savedId) return;
+
+      // 🔐 Validación para producción:
+      if (!savedId) {
+        Alert.alert('Error', 'No se pudo obtener tu ID');
+        return;
+      }
 
       setUserId(savedId);
 
@@ -48,10 +64,11 @@ export default function ProfileScreen({ userName }: Props) {
           setNumeroCasa(data.numero_casa || '');
           setFotoUrl(data.foto_url || '');
         } else {
-          console.log('Error al cargar perfil:', data.error);
+          Alert.alert('Error', data.error || 'No se pudo cargar el perfil');
         }
       } catch (error) {
         console.log('Error de conexión:', error);
+        Alert.alert('Error', 'No se pudo conectar al servidor');
       }
     };
 
@@ -63,10 +80,7 @@ export default function ProfileScreen({ userName }: Props) {
       'Foto de perfil',
       'Elige una opción',
       [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
+        { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Tomar foto',
           onPress: async () => {
@@ -110,6 +124,7 @@ export default function ProfileScreen({ userName }: Props) {
   };
 
   const handleGuardar = async () => {
+    // 🔐 Protección: evitar guardar sin userId
     if (!userId) {
       Alert.alert('Error interno', 'No se pudo obtener tu ID de usuario');
       return;
@@ -140,7 +155,7 @@ export default function ProfileScreen({ userName }: Props) {
       setEditando(false);
     } catch (error) {
       console.error(error);
-      Alert.alert('Error de conexión');
+      Alert.alert('Error de conexión', 'No se pudo actualizar el perfil');
     }
   };
 
@@ -268,11 +283,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#3498db',
     borderRadius: 16,
     padding: 4,
-  },
-  changePhotoText: {
-    color: '#3498db',
-    textAlign: 'center',
-    marginBottom: 12,
-    fontSize: 14,
   },
 });
