@@ -1,18 +1,23 @@
+import React from "react";
+import { View, ActivityIndicator } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import React from "react";
+import * as Linking from "expo-linking";
+
 import LoginScreen from "./screens/LoginScreen";
-import HomeScreen from "./screens/HomeScreen";
-import TabsNavigator from "./screens/TabsNavigator";
 import RegistroScreen from "./screens/RegistroScreen";
 import ForgotPasswordScreen from "./screens/ForgotPasswordScreen";
-import * as Linking from "expo-linking";
+import TabsNavigator from "./screens/TabsNavigator";
 import VisitantesScreen from "./screens/VisitantesScreen";
 import CrearVisitanteScreen from "./screens/CrearVisitanteScreen";
 import QRGeneratorScreen from "./screens/QRGeneratorScreen";
 
+const Stack = createNativeStackNavigator();
+
 const linking = {
-  prefixes: ["neighnet2://"], // Este debe coincidir con el scheme en app.json
+  prefixes: ["neighnet2://"],
   config: {
     screens: {
       ResetPassword: "reset-password",
@@ -22,60 +27,32 @@ const linking = {
     try {
       const url = await Linking.getInitialURL();
       return url;
-    } catch (e) {
-      console.error("Error getting initial URL:", e);
+    } catch {
       return null;
     }
   },
 };
 
-const Stack = createNativeStackNavigator();
-
 export default function App() {
   return (
-    <NavigationContainer linking={linking}>
-      <Stack.Navigator initialRouteName="Login">
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Registro"
-          component={RegistroScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="ForgotPassword"
-          component={ForgotPasswordScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Main"
-          component={TabsNavigator}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="ResetPassword"
-          component={ForgotPasswordScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="Visitantes"
-          component={VisitantesScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="CrearVisitante"
-          component={CrearVisitanteScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="QRGenerator"
-          component={QRGeneratorScreen}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <NavigationContainer
+          linking={linking}
+          fallback={<View style={{flex:1,justifyContent:"center",alignItems:"center"}}><ActivityIndicator/></View>}
+        >
+          <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Registro" component={RegistroScreen} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="Main" component={TabsNavigator} />
+            <Stack.Screen name="ResetPassword" component={ForgotPasswordScreen} />
+            <Stack.Screen name="Visitantes" component={VisitantesScreen} />
+            <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
+            <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
