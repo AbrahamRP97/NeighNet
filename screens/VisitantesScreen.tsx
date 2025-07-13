@@ -59,7 +59,7 @@ export default function VisitantesScreen() {
         return;
       }
 
-      setVisitantes(visitantesData);
+      setVisitantes(Array.isArray(visitantesData) ? visitantesData : []);
     } catch (error) {
       console.error('Error al obtener visitantes:', error);
       Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
