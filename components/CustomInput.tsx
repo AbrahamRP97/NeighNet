@@ -1,43 +1,86 @@
-import React, { forwardRef } from 'react';
-import { TextInput, StyleSheet, TextInputProps } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  TextInput,
+  StyleSheet,
+  TextInputProps,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
 
-interface Props extends TextInputProps {
+interface CustomInputProps extends TextInputProps {
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
   hasError?: boolean;
+  editable?: boolean;
+  secureTextEntry?: boolean;
 }
 
-const CustomInput = forwardRef<TextInput, Props>(({ hasError = false, ...props }, ref) => {
+export default function CustomInput({
+  value,
+  onChangeText,
+  placeholder,
+  hasError,
+  editable = true,
+  secureTextEntry = false,
+  ...rest
+}: CustomInputProps) {
+  const [showPassword, setShowPassword] = useState(false);
+
+  const isPassword = secureTextEntry;
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
+
   return (
-    <TextInput
-      ref={ref}
-      style={[
-        styles.input,
-        hasError ? styles.inputError : {},
-      ]}
-      placeholderTextColor="#999"
-      {...props}
-    />
+    <View style={[styles.inputContainer, hasError && styles.errorBorder]}>
+      <TextInput
+        style={[styles.input, !editable && styles.disabledInput]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        secureTextEntry={isPassword && !showPassword}
+        editable={editable}
+        placeholderTextColor="#aaa"
+        {...rest}
+      />
+      {isPassword && (
+        <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
+          <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
+        </TouchableOpacity>
+      )}
+    </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
-  input: {
-    borderWidth: 1,
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderColor: '#ccc',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    marginBottom: 16,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
     backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
   },
-  inputError: {
-    borderColor: 'red',
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 16,
+    color: '#333',
+  },
+  disabledInput: {
+    backgroundColor: '#f0f0f0',
+    color: '#888',
+  },
+  errorBorder: {
+    borderColor: '#e74c3c',
+  },
+  eyeIcon: {
+    paddingLeft: 10,
   },
 });
-
-export default CustomInput;

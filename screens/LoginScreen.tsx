@@ -1,10 +1,20 @@
 import React, { useRef, useState } from 'react';
-import {View, Text, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Alert} from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+} from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
+import NetInfo from '@react-native-community/netinfo'; // ✅ Importación de NetInfo
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
@@ -25,6 +35,13 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    // ✅ Verifica conexión antes de continuar
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected) {
+      Alert.alert('Sin conexión', 'Activa tus datos o Wi-Fi antes de iniciar sesión.');
+      return;
+    }
+
     const correoValido = validarCorreo(email);
     const contrasenaValida = validarContrasena(password);
     setHasEmailError(!correoValido);
@@ -47,14 +64,15 @@ export default function LoginScreen() {
 
       const { usuario } = data;
       console.log('Rol del usuario:', usuario.rol);
-      
+
       await AsyncStorage.setItem('userId', usuario.id);
       await AsyncStorage.setItem('userName', usuario.nombre);
       await AsyncStorage.setItem('userRole', usuario.rol);
 
       navigation.replace('Main', { userName: usuario.nombre });
     } catch (error) {
-      Alert.alert('Error de conexión');
+      console.error('Error de red:', error);
+      Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
     }
   };
 
@@ -69,7 +87,6 @@ export default function LoginScreen() {
           <Text style={styles.title}>Bienvenido a NeighNet</Text>
 
           <CustomInput
-            ref={emailRef}
             placeholder="Correo electrónico"
             value={email}
             onChangeText={setEmail}
@@ -93,7 +110,10 @@ export default function LoginScreen() {
 
           <CustomButton title="Iniciar sesión" onPress={handleLogin} />
           <CustomButton title="Crear cuenta" onPress={() => navigation.navigate('Registro')} />
-          <CustomButton title="¿Olvidaste tu contraseña?" onPress={() => navigation.navigate('ForgotPassword')} />
+          <CustomButton
+            title="¿Olvidaste tu contraseña?"
+            onPress={() => navigation.navigate('ForgotPassword')}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -1,204 +1,164 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, Alert, ScrollView, View, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
-import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 
 export default function RegistroScreen() {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [cell, setCell] = useState('');
-  const [houseNumber, setHouseNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const navigation = useNavigation<any>();
+  const [nombre, setNombre] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [numeroCasa, setNumeroCasa] = useState('');
+  const [contrasena, setContrasena] = useState('');
 
-  const [hasEmailError, setHasEmailError] = useState(false);
-  const [hasPasswordError, setHasPasswordError] = useState(false);
-  const [hasConfirmError, setHasConfirmError] = useState(false);
+  const [emailError, setEmailError] = useState(false);
+  const [passwordError, setPasswordError] = useState(false);
 
-  const isPasswordValid = (password: string): boolean => {
-    const minLength = /.{8,}/;
-    const hasUpper = /[A-Z]/;
-    const hasNumber = /[0-9]/;
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/;
-
-    return (
-      minLength.test(password) &&
-      hasUpper.test(password) &&
-      hasNumber.test(password) &&
-      hasSpecial.test(password)
-    );
+  const validarCorreo = (correo: string) => {
+    const regex = /\S+@\S+\.\S+/;
+    return regex.test(correo);
   };
 
-  const handleRegister = async () => {
-    let valid = true;
+  const validarContrasena = (contrasena: string) => {
+    const regex = /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
+    return regex.test(contrasena);
+  };
 
-    if (!email.includes('@')) {
-      setHasEmailError(true);
-      valid = false;
-    } else {
-      setHasEmailError(false);
+  const handleRegistro = async () => {
+    const correoValido = validarCorreo(correo);
+    const contrasenaValida = validarContrasena(contrasena);
+
+    setEmailError(!correoValido);
+    setPasswordError(!contrasenaValida);
+
+    if (!correoValido || !contrasenaValida) {
+      return;
     }
 
-    if (!isPasswordValid(password)) {
-      setHasPasswordError(true);
-      valid = false;
-    } else {
-      setHasPasswordError(false);
-    }
-
-    if (password !== confirmPassword) {
-      setHasConfirmError(true);
-      valid = false;
-    } else {
-      setHasConfirmError(false);
-    }
-
-    if (!name || !email || !cell || !houseNumber || !password || !confirmPassword) {
+    if (!nombre || !telefono || !numeroCasa) {
       Alert.alert('Todos los campos son obligatorios');
       return;
     }
 
-    if (valid) {
+    try {
+      const response = await fetch(`${AUTH_BASE_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre,
+          correo,
+          telefono,
+          numero_casa: numeroCasa,
+          contrasena,
+        }),
+      });
+
+      const text = await response.text();
+      console.log('Respuesta cruda:', text);
+
+      let data;
       try {
-        const response = await fetch(`${AUTH_BASE_URL}/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            nombre: name,
-            correo: email,
-            contrasena: password,
-            telefono: cell,
-            numero_casa: houseNumber,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          Alert.alert('Error al registrar', data.error || 'Inténtalo nuevamente');
-          return;
-        }
-
-        console.log('Respuesta al registrar:', data);
-
-        await AsyncStorage.setItem('userId', data.usuario.id);
-        await AsyncStorage.setItem('userName', data.usuario.nombre);
-        await AsyncStorage.setItem('userRole', data.usuario.rol);
-        Alert.alert('¡Registro exitoso!', `Bienvenido/a, ${name}`, [
-          {
-            text: 'Ir a Login',
-            onPress: () => {
-              navigation.navigate('Login', { userName: name });
-            },
-          },
-        ]);
-      } catch (error) {
-        console.error(error);
-        Alert.alert('Error de red', 'No se pudo conectar al servidor');
+        data = JSON.parse(text);
+      } catch {
+        Alert.alert('Error', 'Respuesta inválida del servidor');
+        return;
       }
+
+      if (!response.ok) {
+        const mensaje = data?.error || 'No se pudo registrar el usuario';
+        Alert.alert('Error', mensaje);
+        return;
+      }
+
+      Alert.alert('Cuenta creada con éxito', 'Ahora puedes iniciar sesión', [
+        {
+          text: 'OK',
+          onPress: () => navigation.replace('Login'),
+        },
+      ]);
+    } catch (error) {
+      console.error('Error de red:', error);
+      Alert.alert('Error', 'No se pudo conectar al servidor');
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🎉 Crear cuenta en NeighNet</Text>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>Crear Cuenta</Text>
 
-      <CustomInput
-        placeholder="Nombre completo"
-        value={name}
-        onChangeText={setName}
-      />
+        <CustomInput placeholder="Nombre completo" value={nombre} onChangeText={setNombre} />
+        <CustomInput
+          placeholder="Correo electrónico"
+          value={correo}
+          onChangeText={setCorreo}
+          keyboardType="email-address"
+          hasError={emailError}
+        />
+        <CustomInput
+          placeholder="Teléfono"
+          value={telefono}
+          onChangeText={setTelefono}
+          keyboardType="phone-pad"
+        />
+        <CustomInput
+          placeholder="Número de casa"
+          value={numeroCasa}
+          onChangeText={setNumeroCasa}
+          keyboardType="numeric"
+        />
+        <CustomInput
+          placeholder="Contraseña"
+          value={contrasena}
+          onChangeText={setContrasena}
+          secureTextEntry
+          hasError={passwordError}
+        />
 
-      <CustomInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        hasError={hasEmailError}
-      />
+        {passwordError && (
+          <Text style={styles.errorText}>
+            La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un símbolo.
+          </Text>
+        )}
 
-      <CustomInput
-        placeholder="Número celular"
-        value={cell}
-        onChangeText={setCell}
-        keyboardType="phone-pad"
-      />
-
-      <CustomInput
-        placeholder="Número de casa"
-        value={houseNumber}
-        onChangeText={setHouseNumber}
-        keyboardType="number-pad"
-      />
-
-      <CustomInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        hasError={hasPasswordError}
-      />
-
-      {hasPasswordError && (
-        <Text style={styles.errorText}>
-          La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial.
-        </Text>
-      )}
-
-      <CustomInput
-        placeholder="Confirmar contraseña"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        hasError={hasConfirmError}
-      />
-
-      {hasConfirmError && (
-        <Text style={styles.errorText}>Las contraseñas no coinciden.</Text>
-      )}
-
-      <CustomButton title="🚀 Registrarse" onPress={handleRegister} />
-
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-        <Text style={styles.backButtonText}>← Volver al Login</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <CustomButton title="Registrarse" onPress={handleRegistro} />
+        <CustomButton title="Volver al inicio" onPress={() => navigation.goBack()} />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
-    backgroundColor: '#f0f8ff',
-    flexGrow: 1,
+    backgroundColor: '#f8f8ff',
   },
   title: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 24,
     textAlign: 'center',
-    color: '#333',
+    marginBottom: 20,
+    color: '#2c3e50',
   },
   errorText: {
-    color: 'red',
+    color: '#e74c3c',
     fontSize: 13,
-    marginBottom: 10,
+    marginBottom: 12,
     textAlign: 'center',
-  },
-  backButton: {
-    marginTop: 16,
-    alignSelf: 'center',
-    padding: 10,
-  },
-  backButtonText: {
-    color: '#007AFF',
-    fontSize: 16,
   },
 });
