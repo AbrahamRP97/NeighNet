@@ -117,7 +117,8 @@ export default function ProfileScreen() {
 
   const cerrarSesion = async () => {
     await AsyncStorage.clear();
-    navigation.replace('Login');
+    // → Subimos al Stack padre para que sí reconozca "Login"
+    navigation.getParent()?.replace('Login');
   };
 
   if (loading) {

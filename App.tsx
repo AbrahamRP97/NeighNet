@@ -39,7 +39,11 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer
           linking={linking}
-          fallback={<View style={{flex:1,justifyContent:"center",alignItems:"center"}}><ActivityIndicator/></View>}
+          fallback={
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+              <ActivityIndicator />
+            </View>
+          }
         >
           <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Login" component={LoginScreen} />

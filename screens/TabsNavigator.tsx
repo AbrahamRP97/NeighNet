@@ -7,16 +7,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, View, Text } from 'react-native';
-import CustomButton from '../components/CustomButton'; // 🔐 Necesario para botón de volver
+import CustomButton from '../components/CustomButton';
 
 const Tab = createBottomTabNavigator();
 
 export default function TabsNavigator({ route, navigation }: any) {
-  const { userName } = route.params || {}; // 🔐 Protección: evitar crash si no viene userName
+  const { userName } = route.params || {};
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔐 Validación crítica: si no viene userName, no renderizar tabs
   if (!userName) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
@@ -64,7 +63,6 @@ export default function TabsNavigator({ route, navigation }: any) {
         },
         tabBarIcon: ({ color, size }) => {
           let iconName: string;
-
           switch (route.name) {
             case 'Inicio':
               iconName = 'home';
@@ -81,7 +79,6 @@ export default function TabsNavigator({ route, navigation }: any) {
             default:
               iconName = 'help';
           }
-
           return <Ionicons name={iconName as any} size={size} color={color} />;
         },
       })}
@@ -89,17 +86,14 @@ export default function TabsNavigator({ route, navigation }: any) {
       <Tab.Screen name="Inicio">
         {() => <HomeScreen userName={userName} />}
       </Tab.Screen>
-
       {userRole === 'residente' && (
         <Tab.Screen name="QR" component={QRTabScreen} />
       )}
-
       {userRole === 'vigilancia' && (
         <Tab.Screen name="Escanear QR" component={QRScannerScreen} />
       )}
-
       <Tab.Screen name="Perfil">
-        {() => <ProfileScreen userName={userName} />}
+        {() => <ProfileScreen />}
       </Tab.Screen>
     </Tab.Navigator>
   );
