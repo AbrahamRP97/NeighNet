@@ -36,27 +36,25 @@ export default function ProfileScreen() {
           return;
         }
 
-        const response = await fetch(`${AUTH_BASE_URL}/${userId}`);
-        const text = await response.text();
+        const res = await fetch(`${AUTH_BASE_URL}/${userId}`);
+        const text = await res.text();
         const data = JSON.parse(text);
-
-        if (!response.ok || !data || !data.nombre) {
+        if (!res.ok || !data?.nombre) {
           Alert.alert('Error', data?.error || 'Error al obtener el perfil');
           return;
         }
 
-        setNombre(data.nombre || '');
-        setCorreo(data.correo || '');
-        setTelefono(data.telefono || '');
-        setNumeroCasa(data.numero_casa || '');
-        setFoto(data.foto_url || '');
-      } catch (error) {
+        setNombre(data.nombre);
+        setCorreo(data.correo);
+        setTelefono(data.telefono);
+        setNumeroCasa(data.numero_casa);
+        setFoto(data.foto_url);
+      } catch {
         Alert.alert('Error de red', 'No se pudo conectar al servidor');
       } finally {
         setLoading(false);
       }
     };
-
     cargarPerfil();
   }, []);
 
@@ -67,32 +65,21 @@ export default function ProfileScreen() {
         Alert.alert('Error', 'ID no disponible');
         return;
       }
-
-      const payload = {
-        nombre,
-        correo,
-        telefono,
-        numero_casa: numeroCasa,
-        foto_url: foto,
-      };
-
-      const response = await fetch(`${AUTH_BASE_URL}/${userId}`, {
+      const payload = { nombre, correo, telefono, numero_casa: numeroCasa, foto_url: foto };
+      const res = await fetch(`${AUTH_BASE_URL}/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-
-      const text = await response.text();
+      const text = await res.text();
       const data = JSON.parse(text);
-
-      if (!response.ok) {
+      if (!res.ok) {
         Alert.alert('Error', data?.error || 'No se pudo actualizar');
         return;
       }
-
       Alert.alert('Éxito', 'Perfil actualizado');
       setEditando(false);
-    } catch (error) {
+    } catch {
       Alert.alert('Error de red', 'No se pudo conectar al servidor');
     }
   };
@@ -103,21 +90,18 @@ export default function ProfileScreen() {
       Alert.alert('Permiso denegado', 'Se requiere acceso a la galería');
       return;
     }
-
-    const resultado = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
       allowsEditing: true,
     });
-
-    if (!resultado.canceled && resultado.assets.length > 0) {
-      setFoto(resultado.assets[0].uri);
+    if (!result.canceled && result.assets.length > 0) {
+      setFoto(result.assets[0].uri);
     }
   };
 
   const cerrarSesion = async () => {
     await AsyncStorage.clear();
-    // → Subimos al Stack padre para que sí reconozca "Login"
     navigation.getParent()?.replace('Login');
   };
 
@@ -131,7 +115,7 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Botones de cabecera */}
+      {/* Cabecera */}
       <View style={styles.header}>
         <TouchableOpacity onPress={cerrarSesion}>
           <LogOut color="red" size={24} />
@@ -145,11 +129,7 @@ export default function ProfileScreen() {
 
       <TouchableOpacity onPress={editando ? seleccionarImagen : undefined}>
         <Image
-          source={
-            foto
-              ? { uri: foto }
-              : require('../assets/default-profile.png')
-          }
+          source={foto ? { uri: foto } : require('../assets/default-profile.png')}
           style={styles.avatar}
         />
         {editando && <Text style={styles.editPhotoText}>Cambiar foto</Text>}
@@ -196,16 +176,8 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    backgroundColor: '#f5faff',
-    padding: 24,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
+  container: { flexGrow: 1, backgroundColor: '#f5faff', padding: 24 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
@@ -220,39 +192,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 8,
   },
-  editPhotoText: {
-    textAlign: 'center',
-    color: '#0077b6',
-    marginBottom: 16,
-    fontSize: 13,
-  },
-  input: {
-    backgroundColor: '#fff',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderColor: '#ccc',
-    borderWidth: 1,
-  },
-  disabledInput: {
-    backgroundColor: '#eee',
-    color: '#777',
-  },
-  saveButton: {
-    backgroundColor: '#0077b6',
-    padding: 14,
-    borderRadius: 10,
-    marginTop: 16,
-  },
-  saveButtonText: {
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  editPhotoText: { textAlign: 'center', color: '#0077b6', marginBottom: 16, fontSize: 13 },
+  input: { backgroundColor: '#fff', padding: 12, marginBottom: 12, borderRadius: 8, borderColor: '#ccc', borderWidth: 1 },
+  disabledInput: { backgroundColor: '#eee', color: '#777' },
+  saveButton: { backgroundColor: '#0077b6', padding: 14, borderRadius: 10, marginTop: 16 },
+  saveButtonText: { color: '#fff', textAlign: 'center', fontWeight: 'bold', fontSize: 16 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

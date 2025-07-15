@@ -15,7 +15,7 @@ export default function QRTabScreen() {
 
       <CustomButton
         title="Seleccionar visitante"
-        onPress={() => navigation.navigate('Visitantes')}
+        onPress={() => navigation.getParent()?.navigate('Visitantes')}
       />
     </View>
   );

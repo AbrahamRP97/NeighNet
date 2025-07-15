@@ -21,9 +21,7 @@ export default function VisitantesScreen() {
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
 
-  useEffect(() => {
-    fetchVisitantes();
-  }, []);
+  useEffect(() => { fetchVisitantes(); }, []);
 
   const fetchVisitantes = async () => {
     setLoading(true);
@@ -37,28 +35,18 @@ export default function VisitantesScreen() {
 
       const response = await fetch(`${VISITANTES_BASE_URL}/${userId}`);
       const text = await response.text();
+      const data = JSON.parse(text);
 
-      try {
-        const data = JSON.parse(text);
-
-        if (!response.ok) {
-          Alert.alert('Error', data?.error || 'No se pudieron cargar los visitantes');
-          setVisitantes([]);
-          return;
-        }
-
-        if (!Array.isArray(data)) {
-          Alert.alert('Advertencia', 'La respuesta no es válida');
-          setVisitantes([]);
-          return;
-        }
-
-        setVisitantes(data);
-      } catch {
-        Alert.alert('Error', 'Respuesta inesperada del servidor');
+      if (!response.ok) {
+        Alert.alert('Error', data?.error || 'No se pudieron cargar los visitantes');
         setVisitantes([]);
+      } else if (!Array.isArray(data)) {
+        Alert.alert('Advertencia', 'La respuesta no es válida');
+        setVisitantes([]);
+      } else {
+        setVisitantes(data);
       }
-    } catch (error) {
+    } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar con el servidor');
       setVisitantes([]);
     } finally {
@@ -71,8 +59,7 @@ export default function VisitantesScreen() {
       Alert.alert('Error', 'Visitante no válido');
       return;
     }
-
-    navigation.navigate('QRGenerator', { visitante });
+    navigation.getParent()?.navigate('QRGenerator', { visitante });
   };
 
   const handleEditar = (visitante: any) => {
@@ -80,8 +67,7 @@ export default function VisitantesScreen() {
       Alert.alert('Error', 'Visitante no válido');
       return;
     }
-
-    navigation.navigate('CrearVisitante', { visitante });
+    navigation.getParent()?.navigate('CrearVisitante', { visitante });
   };
 
   const handleEliminar = (visitanteId: string) => {
@@ -98,7 +84,6 @@ export default function VisitantesScreen() {
               const response = await fetch(`${VISITANTES_BASE_URL}/${visitanteId}`, {
                 method: 'DELETE',
               });
-
               if (response.ok) {
                 Alert.alert('Eliminado', 'El visitante fue eliminado');
                 fetchVisitantes();
@@ -166,7 +151,7 @@ export default function VisitantesScreen() {
 
         <CustomButton
           title="Agregar nuevo visitante"
-          onPress={() => navigation.navigate('CrearVisitante')}
+          onPress={() => navigation.getParent()?.navigate('CrearVisitante')}
         />
         <CustomButton title="Volver" onPress={() => navigation.goBack()} />
       </View>
