@@ -18,10 +18,17 @@ const Stack = createNativeStackNavigator();
 
 const linking = {
   prefixes: ["neighnet2://"],
-  config: { screens: { ResetPassword: "reset-password" } },
+  config: {
+    screens: {
+      ResetPassword: "reset-password",
+    },
+  },
   async getInitialURL() {
-    try { return await Linking.getInitialURL(); }
-    catch { return null; }
+    try {
+      return await Linking.getInitialURL();
+    } catch {
+      return null;
+    }
   },
 };
 
@@ -32,8 +39,8 @@ export default function App() {
         <NavigationContainer
           linking={linking}
           fallback={
-            <View style={{ flex:1,justifyContent:"center",alignItems:"center" }}>
-              <ActivityIndicator/>
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+              <ActivityIndicator />
             </View>
           }
         >
@@ -43,8 +50,6 @@ export default function App() {
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
             <Stack.Screen name="Main" component={TabsNavigator} />
             <Stack.Screen name="ResetPassword" component={ForgotPasswordScreen} />
-
-            {/* ← Estas pantallas deben estar aquí, en el mismo Stack que Main */}
             <Stack.Screen name="Visitantes" component={VisitantesScreen} />
             <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
             <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />

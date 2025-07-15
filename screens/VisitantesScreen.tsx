@@ -156,7 +156,7 @@ export default function VisitantesScreen() {
         <CustomButton title="Volver" onPress={() => navigation.goBack()} />
       </View>
     </KeyboardAvoidingView>
-  );
+);
 }
 
 const styles = StyleSheet.create({

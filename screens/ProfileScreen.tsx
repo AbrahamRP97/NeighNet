@@ -115,7 +115,6 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Cabecera */}
       <View style={styles.header}>
         <TouchableOpacity onPress={cerrarSesion}>
           <LogOut color="red" size={24} />
@@ -178,20 +177,8 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: '#f5faff', padding: 24 },
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#1e90ff',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 8,
-  },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', color: '#1e90ff' },
+  avatar: { width: 100, height: 100, borderRadius: 50, alignSelf: 'center', marginBottom: 8 },
   editPhotoText: { textAlign: 'center', color: '#0077b6', marginBottom: 16, fontSize: 13 },
   input: { backgroundColor: '#fff', padding: 12, marginBottom: 12, borderRadius: 8, borderColor: '#ccc', borderWidth: 1 },
   disabledInput: { backgroundColor: '#eee', color: '#777' },

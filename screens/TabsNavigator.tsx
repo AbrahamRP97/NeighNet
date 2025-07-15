@@ -86,12 +86,8 @@ export default function TabsNavigator({ route, navigation }: any) {
       <Tab.Screen name="Inicio">
         {() => <HomeScreen userName={userName} />}
       </Tab.Screen>
-      {userRole === 'residente' && (
-        <Tab.Screen name="QR" component={QRTabScreen} />
-      )}
-      {userRole === 'vigilancia' && (
-        <Tab.Screen name="Escanear QR" component={QRScannerScreen} />
-      )}
+      {userRole === 'residente' && <Tab.Screen name="QR" component={QRTabScreen} />}
+      {userRole === 'vigilancia' && <Tab.Screen name="Escanear QR" component={QRScannerScreen} />}
       <Tab.Screen name="Perfil">
         {() => <ProfileScreen />}
       </Tab.Screen>
