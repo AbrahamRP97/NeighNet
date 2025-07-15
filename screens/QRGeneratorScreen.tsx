@@ -1,5 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  Image,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
 import CustomButton from '../components/CustomButton';
@@ -7,22 +14,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
-import NetInfo from '@react-native-community/netinfo';
 
 export default function QRGeneratorScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const visitante = route.params?.visitante;
-
-  if (!visitante) {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Error</Text>
-      <Text style={styles.description}>No se ha seleccionado un visitante. Por favor, vuelve atrás.</Text>
-      <CustomButton title="Volver" onPress={() => navigation.goBack()} />
-    </View>
-  );
-}
 
   const [qrValue, setQrValue] = useState('');
   const [nombre, setNombre] = useState('');
@@ -30,21 +26,23 @@ export default function QRGeneratorScreen() {
   const [mensajeQR, setMensajeQR] = useState('');
   const badgeRef = useRef<View>(null);
 
-   // 🔐 Verifica conexión
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      if (!state.isConnected) {
-        Alert.alert('Sin conexión', 'No tienes conexión a internet.');
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
   useEffect(() => {
     const cargarDatos = async () => {
-      const savedId = await AsyncStorage.getItem('userId');
+      if (!visitante) {
+        Alert.alert(
+          'Visitante no encontrado',
+          'No se ha seleccionado un visitante. Vuelve y selecciona uno.',
+          [
+            {
+              text: 'Volver',
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+        return;
+      }
 
+      const savedId = await AsyncStorage.getItem('userId');
       if (!savedId) {
         Alert.alert('Error', 'No se pudo obtener tu ID');
         return;
@@ -52,13 +50,20 @@ export default function QRGeneratorScreen() {
 
       try {
         const response = await fetch(`${AUTH_BASE_URL}/${savedId}`);
-        const data = await response.json();
+        const text = await response.text();
 
-        if (response.ok) {
+        try {
+          const data = JSON.parse(text);
+
+          if (!response.ok || !data || !data.nombre || !data.numero_casa) {
+            Alert.alert('Error', data?.error || 'Perfil incompleto o no encontrado');
+            return;
+          }
+
           setNombre(data.nombre);
-          setNumeroCasa(data.numero_casa || '');
-        } else {
-          Alert.alert('Error', data.error || 'No se pudo cargar el perfil');
+          setNumeroCasa(data.numero_casa);
+        } catch {
+          Alert.alert('Error', 'Respuesta inesperada del servidor');
         }
       } catch (error) {
         Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
@@ -70,7 +75,10 @@ export default function QRGeneratorScreen() {
 
   const handleGenerarQR = () => {
     if (!nombre || !numeroCasa || !visitante) {
-      Alert.alert('Información incompleta', 'Asegúrate de tener un visitante seleccionado y tu perfil completo');
+      Alert.alert(
+        'Información incompleta',
+        'Asegúrate de tener un visitante seleccionado y tu perfil completo'
+      );
       return;
     }
 
@@ -86,9 +94,10 @@ export default function QRGeneratorScreen() {
       fechaHoraGeneracion: fechaHoraStr,
     });
 
-    console.log('QR generado:', contenidoQR);
     setQrValue(contenidoQR);
-    setMensajeQR(`👤 ${nombre} le ha enviado una invitación de acceso. Presente este pase en vigilancia.`);
+    setMensajeQR(
+      `👤 ${nombre} le ha enviado una invitación de acceso. Presente este pase en vigilancia.`
+    );
   };
 
   const handleCompartirBadge = async () => {
@@ -114,9 +123,16 @@ export default function QRGeneratorScreen() {
       <Text style={styles.title}>🎫 Pase de visitante</Text>
 
       <View style={styles.infoBox}>
-        <Text style={styles.infoText}>👤 Residente: <Text style={styles.highlight}>{nombre}</Text></Text>
-        <Text style={styles.infoText}>🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text></Text>
-        <Text style={styles.infoText}>👥 Visitante: <Text style={styles.highlight}>{visitante?.nombre}</Text></Text>
+        <Text style={styles.infoText}>
+          👤 Residente: <Text style={styles.highlight}>{nombre}</Text>
+        </Text>
+        <Text style={styles.infoText}>
+          🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text>
+        </Text>
+        <Text style={styles.infoText}>
+          👥 Visitante:{' '}
+          <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
+        </Text>
       </View>
 
       <CustomButton title="Generar pase" onPress={handleGenerarQR} />
@@ -124,7 +140,10 @@ export default function QRGeneratorScreen() {
       {qrValue !== '' && (
         <View style={styles.badgeContainer}>
           <View ref={badgeRef} style={styles.badge}>
-            <Image source={require('../assets/image.png')} style={styles.logo} />
+            <Image
+              source={require('../assets/image.png')}
+              style={styles.logo}
+            />
             <Text style={styles.badgeTitle}>NEIGHNET</Text>
             <QRCode value={qrValue} size={180} />
             <Text style={styles.badgeMessage}>{mensajeQR}</Text>
@@ -140,14 +159,45 @@ export default function QRGeneratorScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 24, backgroundColor: '#f5faff' },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#1e90ff', textAlign: 'center', marginVertical: 20 },
-  infoBox: { backgroundColor: '#ffffff', padding: 16, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 3, marginBottom: 20 },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1e90ff',
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+  infoBox: {
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    marginBottom: 20,
+  },
   infoText: { fontSize: 16, marginBottom: 4 },
   highlight: { fontWeight: 'bold', color: '#2c3e50' },
   badgeContainer: { alignItems: 'center', marginTop: 20 },
-  badge: { padding: 20, borderRadius: 12, backgroundColor: '#fff', borderWidth: 2, borderColor: '#1e90ff', alignItems: 'center' },
+  badge: {
+    padding: 20,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#1e90ff',
+    alignItems: 'center',
+  },
   logo: { width: 60, height: 60, resizeMode: 'contain' },
-  badgeTitle: { fontSize: 20, fontWeight: 'bold', color: '#1e90ff', marginVertical: 8 },
-  description: { fontSize: 16, color: '#555', textAlign: 'center', marginBottom: 20 },
-  badgeMessage: { marginTop: 12, fontSize: 14, color: '#333', textAlign: 'center' },
+  badgeTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e90ff',
+    marginVertical: 8,
+  },
+  badgeMessage: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#333',
+    textAlign: 'center',
+  },
 });

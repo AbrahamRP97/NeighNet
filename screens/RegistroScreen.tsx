@@ -7,11 +7,13 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import { AUTH_BASE_URL } from '../api';
+import NetInfo from '@react-native-community/netinfo';
 
 export default function RegistroScreen() {
   const navigation = useNavigation<any>();
@@ -20,36 +22,34 @@ export default function RegistroScreen() {
   const [telefono, setTelefono] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [contrasena, setContrasena] = useState('');
-
   const [emailError, setEmailError] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const validarCorreo = (correo: string) => {
-    const regex = /\S+@\S+\.\S+/;
-    return regex.test(correo);
-  };
-
-  const validarContrasena = (contrasena: string) => {
-    const regex = /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
-    return regex.test(contrasena);
-  };
+  const validarCorreo = (correo: string) => /\S+@\S+\.\S+/.test(correo);
+  const validarContrasena = (contrasena: string) =>
+    /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/.test(contrasena);
 
   const handleRegistro = async () => {
+    const netInfo = await NetInfo.fetch();
+    if (!netInfo.isConnected) {
+      Alert.alert('Sin conexión', 'Activa internet antes de registrarte');
+      return;
+    }
+
     const correoValido = validarCorreo(correo);
     const contrasenaValida = validarContrasena(contrasena);
-
     setEmailError(!correoValido);
     setPasswordError(!contrasenaValida);
 
-    if (!correoValido || !contrasenaValida) {
-      return;
-    }
+    if (!correoValido || !contrasenaValida) return;
 
     if (!nombre || !telefono || !numeroCasa) {
       Alert.alert('Todos los campos son obligatorios');
       return;
     }
 
+    setLoading(true);
     try {
       const response = await fetch(`${AUTH_BASE_URL}/register`, {
         method: 'POST',
@@ -64,8 +64,6 @@ export default function RegistroScreen() {
       });
 
       const text = await response.text();
-      console.log('Respuesta cruda:', text);
-
       let data;
       try {
         data = JSON.parse(text);
@@ -75,20 +73,18 @@ export default function RegistroScreen() {
       }
 
       if (!response.ok) {
-        const mensaje = data?.error || 'No se pudo registrar el usuario';
-        Alert.alert('Error', mensaje);
+        Alert.alert('Error', data?.error || 'No se pudo registrar el usuario');
         return;
       }
 
       Alert.alert('Cuenta creada con éxito', 'Ahora puedes iniciar sesión', [
-        {
-          text: 'OK',
-          onPress: () => navigation.replace('Login'),
-        },
+        { text: 'OK', onPress: () => navigation.replace('Login') },
       ]);
     } catch (error) {
       console.error('Error de red:', error);
-      Alert.alert('Error', 'No se pudo conectar al servidor');
+      Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -134,8 +130,14 @@ export default function RegistroScreen() {
           </Text>
         )}
 
-        <CustomButton title="Registrarse" onPress={handleRegistro} />
-        <CustomButton title="Volver al inicio" onPress={() => navigation.goBack()} />
+        {loading ? (
+          <ActivityIndicator size="large" color="#0077b6" />
+        ) : (
+          <>
+            <CustomButton title="Registrarse" onPress={handleRegistro} />
+            <CustomButton title="Volver al inicio" onPress={() => navigation.goBack()} />
+          </>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
