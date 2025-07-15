@@ -8,50 +8,50 @@ import {
   ScrollView,
   ActivityIndicator,
   Image,
+  TouchableOpacity,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CustomButton from '../components/CustomButton';
 import { AUTH_BASE_URL } from '../api';
+import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
+import { LogOut, Pencil } from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [telefono, setTelefono] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
+  const [foto, setFoto] = useState('');
   const [editando, setEditando] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [fotoURL, setFotoURL] = useState('');
+
+  const navigation = useNavigation<any>();
 
   useEffect(() => {
     const cargarPerfil = async () => {
       try {
         const userId = await AsyncStorage.getItem('userId');
         if (!userId) {
-          Alert.alert('Error', 'No se pudo obtener el ID del usuario');
+          Alert.alert('Error', 'No se encontró el ID del usuario');
           return;
         }
 
         const response = await fetch(`${AUTH_BASE_URL}/${userId}`);
         const text = await response.text();
+        const data = JSON.parse(text);
 
-        try {
-          const data = JSON.parse(text);
-
-          if (!response.ok || !data || !data.nombre || !data.correo) {
-            Alert.alert('Error', data?.error || 'No se pudo cargar el perfil');
-            return;
-          }
-
-          setNombre(data.nombre);
-          setCorreo(data.correo);
-          setTelefono(data.telefono || '');
-          setNumeroCasa(data.numero_casa || '');
-          setFotoURL(data.foto_url || '');
-        } catch {
-          Alert.alert('Error', 'Respuesta inesperada del servidor');
+        if (!response.ok || !data || !data.nombre) {
+          Alert.alert('Error', data?.error || 'Error al obtener el perfil');
+          return;
         }
+
+        setNombre(data.nombre || '');
+        setCorreo(data.correo || '');
+        setTelefono(data.telefono || '');
+        setNumeroCasa(data.numero_casa || '');
+        setFoto(data.foto_url || '');
       } catch (error) {
-        Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
+        Alert.alert('Error de red', 'No se pudo conectar al servidor');
       } finally {
         setLoading(false);
       }
@@ -64,7 +64,7 @@ export default function ProfileScreen() {
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
-        Alert.alert('Error', 'No se pudo obtener el ID del usuario');
+        Alert.alert('Error', 'ID no disponible');
         return;
       }
 
@@ -73,7 +73,7 @@ export default function ProfileScreen() {
         correo,
         telefono,
         numero_casa: numeroCasa,
-        foto_url: fotoURL,
+        foto_url: foto,
       };
 
       const response = await fetch(`${AUTH_BASE_URL}/${userId}`, {
@@ -83,23 +83,41 @@ export default function ProfileScreen() {
       });
 
       const text = await response.text();
+      const data = JSON.parse(text);
 
-      try {
-        const data = JSON.parse(text);
-
-        if (!response.ok) {
-          Alert.alert('Error', data?.error || 'No se pudo actualizar el perfil');
-          return;
-        }
-
-        Alert.alert('Éxito', 'Perfil actualizado correctamente');
-        setEditando(false);
-      } catch {
-        Alert.alert('Error', 'Respuesta inesperada del servidor');
+      if (!response.ok) {
+        Alert.alert('Error', data?.error || 'No se pudo actualizar');
+        return;
       }
+
+      Alert.alert('Éxito', 'Perfil actualizado');
+      setEditando(false);
     } catch (error) {
       Alert.alert('Error de red', 'No se pudo conectar al servidor');
     }
+  };
+
+  const seleccionarImagen = async () => {
+    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permiso.granted) {
+      Alert.alert('Permiso denegado', 'Se requiere acceso a la galería');
+      return;
+    }
+
+    const resultado = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+    });
+
+    if (!resultado.canceled && resultado.assets.length > 0) {
+      setFoto(resultado.assets[0].uri);
+    }
+  };
+
+  const cerrarSesion = async () => {
+    await AsyncStorage.clear();
+    navigation.replace('Login');
   };
 
   if (loading) {
@@ -112,63 +130,65 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>👤 Perfil del usuario</Text>
+      {/* Botones de cabecera */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={cerrarSesion}>
+          <LogOut color="red" size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setEditando(!editando)}>
+          <Pencil color="#0077b6" size={24} />
+        </TouchableOpacity>
+      </View>
 
-      {fotoURL ? (
-        <Image source={{ uri: fotoURL }} style={styles.avatar} />
-      ) : (
+      <Text style={styles.title}>👤 Perfil</Text>
+
+      <TouchableOpacity onPress={editando ? seleccionarImagen : undefined}>
         <Image
-          source={require('../assets/default-profile.png')}
+          source={
+            foto
+              ? { uri: foto }
+              : require('../assets/default-profile.png')
+          }
           style={styles.avatar}
         />
-      )}
+        {editando && <Text style={styles.editPhotoText}>Cambiar foto</Text>}
+      </TouchableOpacity>
 
       <TextInput
         style={[styles.input, !editando && styles.disabledInput]}
-        value={nombre}
         editable={editando}
+        value={nombre}
         onChangeText={setNombre}
-        placeholder="Nombre completo"
+        placeholder="Nombre"
       />
       <TextInput
         style={[styles.input, !editando && styles.disabledInput]}
-        value={correo}
         editable={editando}
+        value={correo}
         onChangeText={setCorreo}
-        placeholder="Correo electrónico"
+        placeholder="Correo"
         keyboardType="email-address"
       />
       <TextInput
         style={[styles.input, !editando && styles.disabledInput]}
-        value={telefono}
         editable={editando}
+        value={telefono}
         onChangeText={setTelefono}
         placeholder="Teléfono"
         keyboardType="phone-pad"
       />
       <TextInput
         style={[styles.input, !editando && styles.disabledInput]}
-        value={numeroCasa}
         editable={editando}
+        value={numeroCasa}
         onChangeText={setNumeroCasa}
         placeholder="Número de casa"
-        keyboardType="default"
-      />
-      <TextInput
-        style={[styles.input, !editando && styles.disabledInput]}
-        value={fotoURL}
-        editable={editando}
-        onChangeText={setFotoURL}
-        placeholder="URL de foto de perfil"
       />
 
-      {editando ? (
-        <>
-          <CustomButton title="Guardar cambios" onPress={guardarCambios} />
-          <CustomButton title="Cancelar" onPress={() => setEditando(false)} />
-        </>
-      ) : (
-        <CustomButton title="Editar perfil ✏️" onPress={() => setEditando(true)} />
+      {editando && (
+        <TouchableOpacity style={styles.saveButton} onPress={guardarCambios}>
+          <Text style={styles.saveButtonText}>Guardar cambios</Text>
+        </TouchableOpacity>
       )}
     </ScrollView>
   );
@@ -177,13 +197,18 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    padding: 24,
     backgroundColor: '#f5faff',
+    padding: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
     color: '#1e90ff',
   },
@@ -192,7 +217,13 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     alignSelf: 'center',
+    marginBottom: 8,
+  },
+  editPhotoText: {
+    textAlign: 'center',
+    color: '#0077b6',
     marginBottom: 16,
+    fontSize: 13,
   },
   input: {
     backgroundColor: '#fff',
@@ -203,8 +234,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   disabledInput: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#eee',
     color: '#777',
+  },
+  saveButton: {
+    backgroundColor: '#0077b6',
+    padding: 14,
+    borderRadius: 10,
+    marginTop: 16,
+  },
+  saveButtonText: {
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   loadingContainer: {
     flex: 1,

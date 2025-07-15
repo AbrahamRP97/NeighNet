@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { VISITANTES_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,11 +27,11 @@ export default function VisitantesScreen() {
 
   const fetchVisitantes = async () => {
     setLoading(true);
-
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
         Alert.alert('Error', 'No se pudo obtener tu ID');
+        setVisitantes([]);
         return;
       }
 
@@ -41,13 +43,13 @@ export default function VisitantesScreen() {
 
         if (!response.ok) {
           Alert.alert('Error', data?.error || 'No se pudieron cargar los visitantes');
+          setVisitantes([]);
           return;
         }
 
-        // Validamos que data sea un array
         if (!Array.isArray(data)) {
-          Alert.alert('Advertencia', 'No hay visitantes registrados aún');
-          setVisitantes([]); // establecemos lista vacía
+          Alert.alert('Advertencia', 'La respuesta no es válida');
+          setVisitantes([]);
           return;
         }
 
@@ -65,10 +67,20 @@ export default function VisitantesScreen() {
   };
 
   const handleSeleccionar = (visitante: any) => {
+    if (!visitante) {
+      Alert.alert('Error', 'Visitante no válido');
+      return;
+    }
+
     navigation.navigate('QRGenerator', { visitante });
   };
 
   const handleEditar = (visitante: any) => {
+    if (!visitante) {
+      Alert.alert('Error', 'Visitante no válido');
+      return;
+    }
+
     navigation.navigate('CrearVisitante', { visitante });
   };
 
@@ -89,13 +101,13 @@ export default function VisitantesScreen() {
 
               if (response.ok) {
                 Alert.alert('Eliminado', 'El visitante fue eliminado');
-                fetchVisitantes(); // refrescar lista
+                fetchVisitantes();
               } else {
                 const data = await response.json();
-                Alert.alert('Error', data.error || 'No se pudo eliminar');
+                Alert.alert('Error', data?.error || 'No se pudo eliminar');
               }
             } catch {
-              Alert.alert('Error', 'Error de conexión');
+              Alert.alert('Error', 'Error de conexión al eliminar visitante');
             }
           },
         },
@@ -104,51 +116,61 @@ export default function VisitantesScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Selecciona un visitante</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={100}
+    >
+      <View style={styles.container}>
+        <Text style={styles.title}>Selecciona un visitante</Text>
 
-      {loading ? (
-        <ActivityIndicator size="large" color="#1e90ff" />
-      ) : (
-        <FlatList
-          data={visitantes}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.item}>
-              <TouchableOpacity
-                onPress={() => handleSeleccionar(item)}
-                style={{ flex: 1 }}
-              >
-                <Text style={styles.itemText}>
-                  {item.nombre} - {item.identidad}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.actions}>
+        {loading ? (
+          <ActivityIndicator size="large" color="#1e90ff" />
+        ) : (
+          <FlatList
+            data={visitantes}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.item}>
                 <TouchableOpacity
-                  onPress={() => handleEditar(item)}
-                  style={styles.iconButton}
+                  onPress={() => handleSeleccionar(item)}
+                  style={{ flex: 1 }}
                 >
-                  <Pencil size={20} color="#1e90ff" />
+                  <Text style={styles.itemText}>
+                    {item.nombre} - {item.identidad}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => handleEliminar(item.id)}
-                  style={styles.iconButton}
-                >
-                  <Trash2 size={20} color="red" />
-                </TouchableOpacity>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    onPress={() => handleEditar(item)}
+                    style={styles.iconButton}
+                  >
+                    <Pencil size={20} color="#1e90ff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => handleEliminar(item.id)}
+                    style={styles.iconButton}
+                  >
+                    <Trash2 size={20} color="red" />
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-          ListEmptyComponent={<Text style={{ textAlign: 'center' }}>No hay visitantes registrados</Text>}
-        />
-      )}
+            )}
+            ListEmptyComponent={
+              <Text style={{ textAlign: 'center', marginTop: 16 }}>
+                No hay visitantes registrados aún
+              </Text>
+            }
+          />
+        )}
 
-      <CustomButton
-        title="Agregar nuevo visitante"
-        onPress={() => navigation.navigate('CrearVisitante')}
-      />
-      <CustomButton title="Volver" onPress={() => navigation.goBack()} />
-    </View>
+        <CustomButton
+          title="Agregar nuevo visitante"
+          onPress={() => navigation.navigate('CrearVisitante')}
+        />
+        <CustomButton title="Volver" onPress={() => navigation.goBack()} />
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

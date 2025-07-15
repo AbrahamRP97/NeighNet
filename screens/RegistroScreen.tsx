@@ -22,8 +22,10 @@ export default function RegistroScreen() {
   const [telefono, setTelefono] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [contrasena, setContrasena] = useState('');
+  const [confirmarContrasena, setConfirmarContrasena] = useState('');
   const [emailError, setEmailError] = useState(false);
   const [passwordError, setPasswordError] = useState(false);
+  const [passwordMatchError, setPasswordMatchError] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const validarCorreo = (correo: string) => /\S+@\S+\.\S+/.test(correo);
@@ -39,10 +41,13 @@ export default function RegistroScreen() {
 
     const correoValido = validarCorreo(correo);
     const contrasenaValida = validarContrasena(contrasena);
+    const contrasenasIguales = contrasena === confirmarContrasena;
+
     setEmailError(!correoValido);
     setPasswordError(!contrasenaValida);
+    setPasswordMatchError(!contrasenasIguales);
 
-    if (!correoValido || !contrasenaValida) return;
+    if (!correoValido || !contrasenaValida || !contrasenasIguales) return;
 
     if (!nombre || !telefono || !numeroCasa) {
       Alert.alert('Todos los campos son obligatorios');
@@ -92,8 +97,9 @@ export default function RegistroScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={100}
     >
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Crear Cuenta</Text>
 
         <CustomInput placeholder="Nombre completo" value={nombre} onChangeText={setNombre} />
@@ -123,11 +129,21 @@ export default function RegistroScreen() {
           secureTextEntry
           hasError={passwordError}
         />
+        <CustomInput
+          placeholder="Confirmar contraseña"
+          value={confirmarContrasena}
+          onChangeText={setConfirmarContrasena}
+          secureTextEntry
+          hasError={passwordMatchError}
+        />
 
         {passwordError && (
           <Text style={styles.errorText}>
             La contraseña debe tener mínimo 8 caracteres, una mayúscula, un número y un símbolo.
           </Text>
+        )}
+        {passwordMatchError && (
+          <Text style={styles.errorText}>Las contraseñas no coinciden.</Text>
         )}
 
         {loading ? (
