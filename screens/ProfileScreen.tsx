@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation } from '@react-navigation/native';
-import { LogOut, Pencil } from 'lucide-react-native';
+import { LogOut, Pencil, X as CloseIcon } from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const [nombre, setNombre] = useState('');
@@ -27,34 +27,35 @@ export default function ProfileScreen() {
 
   const navigation = useNavigation<any>();
 
-  useEffect(() => {
-    const cargarPerfil = async () => {
-      try {
-        const userId = await AsyncStorage.getItem('userId');
-        if (!userId) {
-          Alert.alert('Error', 'No se encontró el ID del usuario');
-          return;
-        }
-
-        const res = await fetch(`${AUTH_BASE_URL}/${userId}`);
-        const text = await res.text();
-        const data = JSON.parse(text);
-        if (!res.ok || !data?.nombre) {
-          Alert.alert('Error', data?.error || 'Error al obtener el perfil');
-          return;
-        }
-
-        setNombre(data.nombre);
-        setCorreo(data.correo);
-        setTelefono(data.telefono);
-        setNumeroCasa(data.numero_casa);
-        setFoto(data.foto_url);
-      } catch {
-        Alert.alert('Error de red', 'No se pudo conectar al servidor');
-      } finally {
-        setLoading(false);
+  // Función para cargar datos del perfil
+  const cargarPerfil = async () => {
+    setLoading(true);
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Error', 'No se encontró el ID del usuario');
+        return;
       }
-    };
+      const res = await fetch(`${AUTH_BASE_URL}/${userId}`);
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (!res.ok || !data?.nombre) {
+        Alert.alert('Error', data?.error || 'Error al obtener el perfil');
+        return;
+      }
+      setNombre(data.nombre);
+      setCorreo(data.correo);
+      setTelefono(data.telefono);
+      setNumeroCasa(data.numero_casa);
+      setFoto(data.foto_url);
+    } catch {
+      Alert.alert('Error de red', 'No se pudo conectar al servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     cargarPerfil();
   }, []);
 
@@ -116,11 +117,22 @@ export default function ProfileScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
+        {/* Logout */}
         <TouchableOpacity onPress={cerrarSesion}>
           <LogOut color="red" size={24} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setEditando(!editando)}>
-          <Pencil color="#0077b6" size={24} />
+        {/* Toggle editar / cancelar */}
+        <TouchableOpacity
+          onPress={() => {
+            if (editando) {
+              setEditando(false);
+              cargarPerfil();
+            } else {
+              setEditando(true);
+            }
+          }}
+        >
+          {editando ? <CloseIcon color="#0077b6" size={24} /> : <Pencil color="#0077b6" size={24} />}
         </TouchableOpacity>
       </View>
 
@@ -128,7 +140,9 @@ export default function ProfileScreen() {
 
       <TouchableOpacity onPress={editando ? seleccionarImagen : undefined}>
         <Image
-          source={foto ? { uri: foto } : require('../assets/default-profile.png')}
+          source={
+            foto ? { uri: foto } : require('../assets/default-profile.png')
+          }
           style={styles.avatar}
         />
         {editando && <Text style={styles.editPhotoText}>Cambiar foto</Text>}
