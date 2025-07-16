@@ -1,48 +1,61 @@
-import { TouchableOpacity, Text, StyleSheet, GestureResponderEvent } from 'react-native';
+import React from 'react';
+import {
+  Pressable,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+  Platform,
+} from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   title: string;
-  onPress: (event: GestureResponderEvent) => void;
-  disabled?: boolean;
+  onPress: () => void;
+  style?: ViewStyle;
+  textStyle?: TextStyle;
 }
 
-export default function CustomButton({ title, onPress, disabled = false }: Props) {
+export default function CustomButton({
+  title,
+  onPress,
+  style,
+  textStyle,
+}: Props) {
+  const { theme } = useTheme();
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.button,
-        disabled ? styles.buttonDisabled : {},
-      ]}
+    <Pressable
       onPress={onPress}
-      activeOpacity={0.7}
-      disabled={disabled}
+      android_ripple={{ color: theme.colors.placeholder }}
+      style={({ pressed }) => [
+        {
+          backgroundColor: theme.colors.primary,
+          opacity: pressed ? 0.8 : 1,
+          transform: pressed
+            ? [{ scale: Platform.OS === 'ios' ? 0.97 : 1 }]
+            : [{ scale: 1 }],
+        },
+        styles.button,
+        style,
+      ]}
     >
-      <Text style={styles.text}>{title}</Text>
-    </TouchableOpacity>
+      <Text style={[{ color: '#fff', fontSize: theme.fontSize.body }, styles.text, textStyle]}>
+        {title}
+      </Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
     alignItems: 'center',
-    marginTop: 12,
-    shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  buttonDisabled: {
-    backgroundColor: '#A0A0A0',
-    shadowColor: '#A0A0A0',
+    marginVertical: 6,
   },
   text: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '600',
+    fontWeight: 'bold',
   },
 });

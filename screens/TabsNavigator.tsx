@@ -19,7 +19,14 @@ export default function TabsNavigator({ route, navigation }: any) {
   if (!userName) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={{ fontSize: 16, color: '#e74c3c', textAlign: 'center', marginBottom: 16 }}>
+        <Text
+          style={{
+            fontSize: 16,
+            color: '#e74c3c',
+            textAlign: 'center',
+            marginBottom: 16,
+          }}
+        >
           Error: No se pudo obtener tu nombre de usuario. Por favor vuelve a iniciar sesión.
         </Text>
         <CustomButton title="Volver al login" onPress={() => navigation.replace('Login')} />
@@ -53,6 +60,7 @@ export default function TabsNavigator({ route, navigation }: any) {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        animationEnabled: true, // <-- Habilita transiciones suaves entre tabs
         tabBarActiveTintColor: '#2c3e50',
         tabBarInactiveTintColor: '#bdc3c7',
         tabBarLabelStyle: { fontSize: 12 },
@@ -86,8 +94,14 @@ export default function TabsNavigator({ route, navigation }: any) {
       <Tab.Screen name="Inicio">
         {() => <HomeScreen userName={userName} />}
       </Tab.Screen>
-      {userRole === 'residente' && <Tab.Screen name="QR" component={QRTabScreen} />}
-      {userRole === 'vigilancia' && <Tab.Screen name="Escanear QR" component={QRScannerScreen} />}
+
+      {userRole === 'residente' && (
+        <Tab.Screen name="QR" component={QRTabScreen} />
+      )}
+      {userRole === 'vigilancia' && (
+        <Tab.Screen name="Escanear QR" component={QRScannerScreen} />
+      )}
+
       <Tab.Screen name="Perfil">
         {() => <ProfileScreen />}
       </Tab.Screen>

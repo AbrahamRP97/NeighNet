@@ -1,11 +1,11 @@
 // screens/QRGeneratorScreen.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import {
+  ScrollView,
   View,
   Text,
   StyleSheet,
   Alert,
-  ScrollView,
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,35 +15,39 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
+import Card from '../components/Card';
 
 export default function QRGeneratorScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const visitante = route.params?.visitante;
 
+  const badgeRef = useRef<View>(null);
   const [qrValue, setQrValue] = useState('');
   const [nombre, setNombre] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [mensajeQR, setMensajeQR] = useState('');
-  const badgeRef = useRef<View>(null);
 
   useEffect(() => {
+    if (!visitante) {
+      Alert.alert(
+        'Visitante no encontrado',
+        'No se ha seleccionado un visitante. Vuelve y selecciona uno.',
+        [{ text: 'Volver', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
     (async () => {
-      if (!visitante) {
-        Alert.alert(
-          'Visitante no encontrado',
-          'No se ha seleccionado un visitante. Vuelve y selecciona uno.',
-          [{ text: 'Volver', onPress: () => navigation.goBack() }]
-        );
+      const savedId = await AsyncStorage.getItem('userId');
+      if (!savedId) {
+        Alert.alert('Error', 'No se pudo obtener tu ID');
         return;
       }
-      const id = await AsyncStorage.getItem('userId');
-      if (!id) { Alert.alert('Error', 'No se pudo obtener tu ID'); return; }
       try {
-        const r = await fetch(`${AUTH_BASE_URL}/${id}`);
-        const text = await r.text();
+        const response = await fetch(`${AUTH_BASE_URL}/${savedId}`);
+        const text = await response.text();
         const data = JSON.parse(text);
-        if (!r.ok || !data.nombre || !data.numero_casa) {
+        if (!response.ok || !data?.nombre || !data?.numero_casa) {
           Alert.alert('Error', data?.error || 'Perfil incompleto o no encontrado');
           return;
         }
@@ -85,17 +89,12 @@ export default function QRGeneratorScreen() {
       return;
     }
     try {
-      const uri = await captureRef(badgeRef, {
-        format: 'png',
-        quality: 1,
-        result: 'tmpfile',
-      });
+      const uri = await captureRef(badgeRef, { format: 'png', quality: 1 });
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         dialogTitle: 'Compartir pase de visitante',
       });
-    } catch (error) {
-      console.error('Error al compartir pase:', error);
+    } catch {
       Alert.alert('Error', 'No se pudo compartir el pase');
     }
   };
@@ -104,30 +103,33 @@ export default function QRGeneratorScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>🎫 Pase de visitante</Text>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.infoText}>
-          👤 Residente: <Text style={styles.highlight}>{nombre}</Text>
-        </Text>
-        <Text style={styles.infoText}>
-          🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text>
-        </Text>
-        <Text style={styles.infoText}>
-          👥 Visitante: <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
-        </Text>
-      </View>
+      <Card style={styles.card}>
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>
+            👤 Residente: <Text style={styles.highlight}>{nombre}</Text>
+          </Text>
+          <Text style={styles.infoText}>
+            🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text>
+          </Text>
+          <Text style={styles.infoText}>
+            👥 Visitante:{' '}
+            <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
+          </Text>
+        </View>
+      </Card>
 
       <CustomButton title="Generar pase" onPress={handleGenerarQR} />
 
       {qrValue !== '' && (
-        <View style={styles.badgeContainer}>
-          <View ref={badgeRef} collapsable={false} style={styles.badge}>
+        <Card style={styles.card}>
+          <View ref={badgeRef} style={styles.badge}>
             <Image source={require('../assets/image.png')} style={styles.logo} />
             <Text style={styles.badgeTitle}>NEIGHNET</Text>
             <QRCode value={qrValue} size={180} />
             <Text style={styles.badgeMessage}>{mensajeQR}</Text>
           </View>
           <CustomButton title="Compartir pase" onPress={handleCompartirBadge} />
-        </View>
+        </Card>
       )}
 
       <CustomButton title="Volver" onPress={() => navigation.goBack()} />
@@ -136,7 +138,11 @@ export default function QRGeneratorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24, backgroundColor: '#f5faff' },
+  container: {
+    flexGrow: 1,
+    padding: 24,
+    backgroundColor: '#f5faff',
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -144,19 +150,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginVertical: 20,
   },
-  infoBox: {
-    backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 20,
+  card: {
+    marginBottom: 16,
   },
-  infoText: { fontSize: 16, marginBottom: 4 },
-  highlight: { fontWeight: 'bold', color: '#2c3e50' },
-  badgeContainer: { alignItems: 'center', marginTop: 20 },
+  infoBox: {
+    // solo padding interno, Card ya aporta sombra y radio
+  },
+  infoText: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  highlight: {
+    fontWeight: 'bold',
+    color: '#2c3e50',
+  },
   badge: {
     padding: 20,
     borderRadius: 12,
@@ -165,7 +172,11 @@ const styles = StyleSheet.create({
     borderColor: '#1e90ff',
     alignItems: 'center',
   },
-  logo: { width: 60, height: 60, resizeMode: 'contain' },
+  logo: {
+    width: 60,
+    height: 60,
+    resizeMode: 'contain',
+  },
   badgeTitle: {
     fontSize: 20,
     fontWeight: 'bold',

@@ -1,7 +1,16 @@
-import React, { useRef, useState } from 'react';
+// screens/LoginScreen.tsx
+import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, Image, KeyboardAvoidingView,
-  Platform, ScrollView, Alert, ActivityIndicator,
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
@@ -9,6 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import NetInfo from '@react-native-community/netinfo';
+import Card from '../components/Card';
+import { useTheme } from '../context/ThemeContext';
+import type { Theme } from '../theme';
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
@@ -18,58 +30,48 @@ export default function LoginScreen() {
   const [hasPasswordError, setHasPasswordError] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const { theme: t } = useTheme();
+  const styles = makeStyles(t);
+
   const validarCorreo = (correo: string) => /\S+@\S+\.\S+/.test(correo);
   const validarContrasena = (contrasena: string) =>
     /^(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/.test(contrasena);
 
   const handleLogin = async () => {
-    const netInfo = await NetInfo.fetch();
-    if (!netInfo.isConnected) {
+    const net = await NetInfo.fetch();
+    if (!net.isConnected) {
       Alert.alert('Sin conexión', 'Activa tus datos o Wi-Fi antes de iniciar sesión.');
       return;
     }
-
-    const correoValido = validarCorreo(email);
-    const contrasenaValida = validarContrasena(password);
-    setHasEmailError(!correoValido);
-    setHasPasswordError(!contrasenaValida);
-    if (!correoValido || !contrasenaValida) return;
+    const correoOk = validarCorreo(email);
+    const passOk = validarContrasena(password);
+    setHasEmailError(!correoOk);
+    setHasPasswordError(!passOk);
+    if (!correoOk || !passOk) return;
 
     setLoading(true);
     try {
-      const response = await fetch(`${AUTH_BASE_URL}/login`, {
+      const res = await fetch(`${AUTH_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: email, contrasena: password }),
       });
-
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        Alert.alert('Error', 'Respuesta inesperada del servidor');
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (!res.ok) {
+        Alert.alert('Error', data.error || 'Credenciales inválidas');
         return;
       }
-
-      if (!response.ok) {
-        Alert.alert('Error', data?.error || 'Credenciales inválidas');
-        return;
-      }
-
       const { usuario } = data;
-      if (!usuario || !usuario.id || !usuario.nombre) {
+      if (!usuario?.id || !usuario?.nombre) {
         Alert.alert('Error', 'Datos del usuario incompletos');
         return;
       }
-
       await AsyncStorage.setItem('userId', usuario.id);
       await AsyncStorage.setItem('userName', usuario.nombre);
       await AsyncStorage.setItem('userRole', usuario.rol || 'residente');
-
       navigation.replace('Main', { userName: usuario.nombre });
-    } catch (error) {
-      console.error('Error de red:', error);
+    } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
     } finally {
       setLoading(false);
@@ -78,11 +80,11 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: '#f0f4f8' }}
+      style={{ flex: 1, backgroundColor: t.colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.card}>
+        <Card style={styles.card}>
           <Image source={require('../assets/image.png')} style={styles.logo} />
           <Text style={styles.title}>Bienvenido a NeighNet</Text>
 
@@ -108,7 +110,7 @@ export default function LoginScreen() {
           )}
 
           {loading ? (
-            <ActivityIndicator size="large" color="#0077b6" />
+            <ActivityIndicator size="large" color={t.colors.primary} />
           ) : (
             <>
               <CustomButton title="Iniciar sesión" onPress={handleLogin} />
@@ -119,47 +121,42 @@ export default function LoginScreen() {
               />
             </>
           )}
-        </View>
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#f0f4f8',
-  },
-  card: {
-    backgroundColor: '#fff',
-    padding: 24,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  logo: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#e74c3c',
-    fontSize: 13,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-});
+const makeStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      padding: 24,
+      backgroundColor: theme.colors.background,
+    },
+    card: {
+      padding: 24,
+      borderRadius: 12,
+    },
+    logo: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      alignSelf: 'center',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: 'bold',
+      color: theme.colors.text,
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    errorText: {
+      color: theme.colors.error,
+      fontSize: 13,
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+  });
