@@ -14,14 +14,16 @@ import { VISITANTES_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { useNavigation } from '@react-navigation/native';
- // import { Pencil, Trash2 } from 'lucide-react-native'; // iconos opcionales
+import { Pencil, Trash2 } from 'lucide-react-native';
 
 export default function VisitantesScreen() {
   const [visitantes, setVisitantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
 
-  useEffect(() => { fetchVisitantes(); }, []);
+  useEffect(() => {
+    fetchVisitantes();
+  }, []);
 
   const fetchVisitantes = async () => {
     setLoading(true);
@@ -117,17 +119,26 @@ export default function VisitantesScreen() {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <View style={styles.item}>
-                <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>
+                <TouchableOpacity
+                  onPress={() => handleSeleccionar(item)}
+                  style={{ flex: 1 }}
+                >
                   <Text style={styles.itemText}>
                     {item.nombre} - {item.identidad}
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.actions}>
-                  <TouchableOpacity onPress={() => handleEditar(item)} style={styles.iconButton}>
-                    {/* <Pencil size={20} color="#1e90ff" /> */}
+                  <TouchableOpacity
+                    onPress={() => handleEditar(item)}
+                    style={styles.iconButton}
+                  >
+                    <Pencil size={20} color="#1e90ff" />
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleEliminar(item.id)} style={styles.iconButton}>
-                    {/* <Trash2 size={20} color="red" /> */}
+                  <TouchableOpacity
+                    onPress={() => handleEliminar(item.id)}
+                    style={styles.iconButton}
+                  >
+                    <Trash2 size={20} color="red" />
                   </TouchableOpacity>
                 </View>
               </View>
