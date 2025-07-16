@@ -14,7 +14,7 @@ import { VISITANTES_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { useNavigation } from '@react-navigation/native';
-import { Pencil, Trash2 } from 'lucide-react-native';
+ // import { Pencil, Trash2 } from 'lucide-react-native'; // iconos opcionales
 
 export default function VisitantesScreen() {
   const [visitantes, setVisitantes] = useState<any[]>([]);
@@ -59,7 +59,7 @@ export default function VisitantesScreen() {
       Alert.alert('Error', 'Visitante no válido');
       return;
     }
-    navigation.getParent()?.navigate('QRGenerator', { visitante });
+    navigation.navigate('QRGenerator', { visitante });
   };
 
   const handleEditar = (visitante: any) => {
@@ -67,7 +67,7 @@ export default function VisitantesScreen() {
       Alert.alert('Error', 'Visitante no válido');
       return;
     }
-    navigation.getParent()?.navigate('CrearVisitante', { visitante });
+    navigation.navigate('CrearVisitante', { visitante });
   };
 
   const handleEliminar = (visitanteId: string) => {
@@ -117,26 +117,17 @@ export default function VisitantesScreen() {
             keyExtractor={(item) => item.id.toString()}
             renderItem={({ item }) => (
               <View style={styles.item}>
-                <TouchableOpacity
-                  onPress={() => handleSeleccionar(item)}
-                  style={{ flex: 1 }}
-                >
+                <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>
                   <Text style={styles.itemText}>
                     {item.nombre} - {item.identidad}
                   </Text>
                 </TouchableOpacity>
                 <View style={styles.actions}>
-                  <TouchableOpacity
-                    onPress={() => handleEditar(item)}
-                    style={styles.iconButton}
-                  >
-                    <Pencil size={20} color="#1e90ff" />
+                  <TouchableOpacity onPress={() => handleEditar(item)} style={styles.iconButton}>
+                    {/* <Pencil size={20} color="#1e90ff" /> */}
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleEliminar(item.id)}
-                    style={styles.iconButton}
-                  >
-                    <Trash2 size={20} color="red" />
+                  <TouchableOpacity onPress={() => handleEliminar(item.id)} style={styles.iconButton}>
+                    {/* <Trash2 size={20} color="red" /> */}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -151,12 +142,12 @@ export default function VisitantesScreen() {
 
         <CustomButton
           title="Agregar nuevo visitante"
-          onPress={() => navigation.getParent()?.navigate('CrearVisitante')}
+          onPress={() => navigation.navigate('CrearVisitante')}
         />
         <CustomButton title="Volver" onPress={() => navigation.goBack()} />
       </View>
     </KeyboardAvoidingView>
-);
+  );
 }
 
 const styles = StyleSheet.create({
