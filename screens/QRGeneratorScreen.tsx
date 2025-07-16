@@ -1,3 +1,4 @@
+// screens/QRGeneratorScreen.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
@@ -27,50 +28,31 @@ export default function QRGeneratorScreen() {
   const badgeRef = useRef<View>(null);
 
   useEffect(() => {
-    const cargarDatos = async () => {
+    (async () => {
       if (!visitante) {
         Alert.alert(
           'Visitante no encontrado',
           'No se ha seleccionado un visitante. Vuelve y selecciona uno.',
-          [
-            {
-              text: 'Volver',
-              onPress: () => navigation.goBack(),
-            },
-          ]
+          [{ text: 'Volver', onPress: () => navigation.goBack() }]
         );
         return;
       }
-
-      const savedId = await AsyncStorage.getItem('userId');
-      if (!savedId) {
-        Alert.alert('Error', 'No se pudo obtener tu ID');
-        return;
-      }
-
+      const id = await AsyncStorage.getItem('userId');
+      if (!id) { Alert.alert('Error', 'No se pudo obtener tu ID'); return; }
       try {
-        const response = await fetch(`${AUTH_BASE_URL}/${savedId}`);
-        const text = await response.text();
-
-        try {
-          const data = JSON.parse(text);
-
-          if (!response.ok || !data || !data.nombre || !data.numero_casa) {
-            Alert.alert('Error', data?.error || 'Perfil incompleto o no encontrado');
-            return;
-          }
-
-          setNombre(data.nombre);
-          setNumeroCasa(data.numero_casa);
-        } catch {
-          Alert.alert('Error', 'Respuesta inesperada del servidor');
+        const r = await fetch(`${AUTH_BASE_URL}/${id}`);
+        const text = await r.text();
+        const data = JSON.parse(text);
+        if (!r.ok || !data.nombre || !data.numero_casa) {
+          Alert.alert('Error', data?.error || 'Perfil incompleto o no encontrado');
+          return;
         }
-      } catch (error) {
+        setNombre(data.nombre);
+        setNumeroCasa(data.numero_casa);
+      } catch {
         Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
       }
-    };
-
-    cargarDatos();
+    })();
   }, []);
 
   const handleGenerarQR = () => {
@@ -81,11 +63,9 @@ export default function QRGeneratorScreen() {
       );
       return;
     }
-
     const now = new Date();
     const fechaHoraStr = now.toLocaleString();
     const idUnico = `${now.getTime()}-${Math.floor(Math.random() * 1000)}`;
-
     const contenidoQR = JSON.stringify({
       idUnico,
       visitanteId: visitante.id,
@@ -93,7 +73,6 @@ export default function QRGeneratorScreen() {
       numeroCasa,
       fechaHoraGeneracion: fechaHoraStr,
     });
-
     setQrValue(contenidoQR);
     setMensajeQR(
       `👤 ${nombre} le ha enviado una invitación de acceso. Presente este pase en vigilancia.`
@@ -105,9 +84,12 @@ export default function QRGeneratorScreen() {
       Alert.alert('Primero genera el pase');
       return;
     }
-
     try {
-      const uri = await captureRef(badgeRef, { format: 'png', quality: 1 });
+      const uri = await captureRef(badgeRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         dialogTitle: 'Compartir pase de visitante',
@@ -130,8 +112,7 @@ export default function QRGeneratorScreen() {
           🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text>
         </Text>
         <Text style={styles.infoText}>
-          👥 Visitante:{' '}
-          <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
+          👥 Visitante: <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
         </Text>
       </View>
 
@@ -139,11 +120,8 @@ export default function QRGeneratorScreen() {
 
       {qrValue !== '' && (
         <View style={styles.badgeContainer}>
-          <View ref={badgeRef} style={styles.badge}>
-            <Image
-              source={require('../assets/image.png')}
-              style={styles.logo}
-            />
+          <View ref={badgeRef} collapsable={false} style={styles.badge}>
+            <Image source={require('../assets/image.png')} style={styles.logo} />
             <Text style={styles.badgeTitle}>NEIGHNET</Text>
             <QRCode value={qrValue} size={180} />
             <Text style={styles.badgeMessage}>{mensajeQR}</Text>
