@@ -67,60 +67,82 @@ export default function ProfileScreen() {
 
   // Subida a Supabase Storage + actualización de foto_url en backend
   const seleccionarImagen = async () => {
-    const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permiso.granted) {
-      Alert.alert('Permiso denegado', 'Se requiere acceso a la galería');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
-    });
-    if (!result.canceled && result.assets.length > 0) {
-      const localUri = result.assets[0].uri;
-      setFotoBase(localUri); // Muestra la nueva foto aunque no se suba aún
+  const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!permiso.granted) {
+    Alert.alert('Permiso denegado', 'Se requiere acceso a la galería');
+    return;
+  }
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.7,
+    allowsEditing: true,
+  });
+  if (!result.canceled && result.assets.length > 0) {
+    const localUri = result.assets[0].uri;
+    setFotoBase(localUri);
 
-      setUploading(true);
-      try {
-        // SUBIR a Supabase Storage
-        const fileExt = localUri.split('.').pop();
-        const fileName = `${Date.now()}.${fileExt}`;
-        const response = await fetch(localUri);
-        const blob = await response.blob();
+    setUploading(true);
+    try {
+      // OBTENER ID del usuario
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Error', 'No se encontró el ID del usuario');
+        setUploading(false);
+        setFotoBase('');
+        return;
+      }
 
-        // Sube a bucket 'avatars'
-        const { error } = await supabase
-          .storage
-          .from('avatars')
-          .upload(fileName, blob, { contentType: 'image/png' });
+      // OBTENER extensión y tipo de contenido
+      const match = /\.(\w+)$/.exec(localUri);
+      const fileExt = match ? match[1].toLowerCase() : 'jpg';
+      const contentType =
+        fileExt === 'png'
+          ? 'image/png'
+          : fileExt === 'jpeg' || fileExt === 'jpg'
+          ? 'image/jpeg'
+          : 'application/octet-stream';
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
 
-        if (error) {
-          Alert.alert('Error', 'No se pudo subir la imagen');
-          setUploading(false);
-          setFotoBase('');
-          return;
-        }
+      // CONVERTIR URI local a blob
+      const response = await fetch(localUri);
+      const blob = await response.blob();
 
-        // Obtiene URL pública
-        const { data: publicUrlData } = supabase
-          .storage
-          .from('avatars')
-          .getPublicUrl(fileName);
+      // SUBIR a Supabase Storage
+      const { error } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, {
+          contentType,
+          upsert: true,
+        });
 
-        const publicUrl = publicUrlData?.publicUrl;
-        if (publicUrl) {
-          setFoto(publicUrl); // Usa esta url para guardar en backend luego
-        } else {
-          Alert.alert('Error', 'No se pudo obtener la URL pública');
-          setFotoBase('');
-        }
-      } catch {
-        Alert.alert('Error', 'Error al subir la imagen');
+      if (error) {
+        Alert.alert('Error', `No se pudo subir la imagen: ${error.message}`);
+        setUploading(false);
+        setFotoBase('');
+        return;
+      }
+
+      // OBTENER URL pública
+      const { data } = supabase
+        .storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+
+      const publicUrlData = data?.publicUrl;
+      if (publicUrlData) {
+        setFoto(publicUrlData); // Actualiza el estado con la URL pública
+      }
+      else {
+        Alert.alert('Error', 'No se pudo obtener la URL pública de la imagen');
         setFotoBase('');
       }
-      setUploading(false);
+    } catch {
+      Alert.alert('Error', 'Error al subir la imagen');
+      setFotoBase('');
+      }
     }
+    setUploading(false);
   };
 
   const guardarCambios = async () => {
