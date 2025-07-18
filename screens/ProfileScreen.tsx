@@ -13,6 +13,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 import * as ImagePicker from 'expo-image-picker';
+import { supabase } from '../lib/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { LogOut, Pencil, X as CloseIcon } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
@@ -26,11 +27,14 @@ export default function ProfileScreen() {
   const [telefono, setTelefono] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [foto, setFoto] = useState('');
+  const [fotoBase, setFotoBase] = useState(''); // uri local mientras sube
   const [editando, setEditando] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const navigation = useNavigation<any>();
 
   const cargarPerfil = async () => {
+    setLoading(true);
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
@@ -48,7 +52,8 @@ export default function ProfileScreen() {
       setCorreo(data.correo);
       setTelefono(data.telefono);
       setNumeroCasa(data.numero_casa);
-      setFoto(data.foto_url);
+      setFoto(data.foto_url || '');
+      setFotoBase('');
     } catch {
       Alert.alert('Error de red', 'No se pudo conectar al servidor');
     } finally {
@@ -60,32 +65,7 @@ export default function ProfileScreen() {
     cargarPerfil();
   }, []);
 
-  const guardarCambios = async () => {
-    try {
-      const userId = await AsyncStorage.getItem('userId');
-      if (!userId) {
-        Alert.alert('Error', 'ID no disponible');
-        return;
-      }
-      const payload = { nombre, correo, telefono, numero_casa: numeroCasa, foto_url: foto };
-      const res = await fetch(`${AUTH_BASE_URL}/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const text = await res.text();
-      const data = JSON.parse(text);
-      if (!res.ok) {
-        Alert.alert('Error', data?.error || 'No se pudo actualizar');
-        return;
-      }
-      Alert.alert('Éxito', 'Perfil actualizado');
-      setEditando(false);
-    } catch {
-      Alert.alert('Error de red', 'No se pudo conectar al servidor');
-    }
-  };
-
+  // Subida a Supabase Storage + actualización de foto_url en backend
   const seleccionarImagen = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
@@ -98,8 +78,85 @@ export default function ProfileScreen() {
       allowsEditing: true,
     });
     if (!result.canceled && result.assets.length > 0) {
-      setFoto(result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+      setFotoBase(localUri); // Muestra la nueva foto aunque no se suba aún
+
+      setUploading(true);
+      try {
+        // SUBIR a Supabase Storage
+        const fileExt = localUri.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const response = await fetch(localUri);
+        const blob = await response.blob();
+
+        // Sube a bucket 'avatars'
+        const { error } = await supabase
+          .storage
+          .from('avatars')
+          .upload(fileName, blob, { contentType: 'image/png' });
+
+        if (error) {
+          Alert.alert('Error', 'No se pudo subir la imagen');
+          setUploading(false);
+          setFotoBase('');
+          return;
+        }
+
+        // Obtiene URL pública
+        const { data: publicUrlData } = supabase
+          .storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        const publicUrl = publicUrlData?.publicUrl;
+        if (publicUrl) {
+          setFoto(publicUrl); // Usa esta url para guardar en backend luego
+        } else {
+          Alert.alert('Error', 'No se pudo obtener la URL pública');
+          setFotoBase('');
+        }
+      } catch {
+        Alert.alert('Error', 'Error al subir la imagen');
+        setFotoBase('');
+      }
+      setUploading(false);
     }
+  };
+
+  const guardarCambios = async () => {
+    setLoading(true);
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert('Error', 'ID no disponible');
+        setLoading(false);
+        return;
+      }
+      const payload = {
+        nombre,
+        correo,
+        telefono,
+        numero_casa: numeroCasa,
+        foto_url: foto, // <-- Aquí SIEMPRE se manda la URL pública de Supabase
+      };
+      const res = await fetch(`${AUTH_BASE_URL}/update/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const text = await res.text();
+      const data = JSON.parse(text);
+      if (!res.ok) {
+        Alert.alert('Error', data?.error || 'No se pudo actualizar');
+        return;
+      }
+      Alert.alert('Éxito', 'Perfil actualizado');
+      setEditando(false);
+      cargarPerfil();
+    } catch {
+      Alert.alert('Error de red', 'No se pudo conectar al servidor');
+    }
+    setLoading(false);
   };
 
   const cerrarSesion = async () => {
@@ -187,14 +244,20 @@ export default function ProfileScreen() {
         👤 Perfil
       </Text>
 
-      <TouchableOpacity onPress={editando ? seleccionarImagen : undefined}>
+      <TouchableOpacity onPress={editando && !uploading ? seleccionarImagen : undefined}>
         <Image
-          source={foto ? { uri: foto } : require('../assets/default-profile.png')}
+          source={
+            fotoBase
+              ? { uri: fotoBase }
+              : foto
+              ? { uri: foto }
+              : require('../assets/default-profile.png')
+          }
           style={styles.avatar}
         />
         {editando && (
           <Text style={[styles.editPhotoText, { color: theme.colors.primary }]}>
-            Cambiar foto
+            {uploading ? 'Subiendo...' : 'Cambiar foto'}
           </Text>
         )}
       </TouchableOpacity>
@@ -238,8 +301,11 @@ export default function ProfileScreen() {
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
           onPress={guardarCambios}
+          disabled={uploading}
         >
-          <Text style={styles.saveButtonText}>Guardar cambios</Text>
+          <Text style={styles.saveButtonText}>
+            {uploading ? 'Subiendo imagen...' : 'Guardar cambios'}
+          </Text>
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -278,6 +344,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignSelf: 'center',
     marginBottom: 8,
+    backgroundColor: '#eee',
   },
   editPhotoText: {
     textAlign: 'center',

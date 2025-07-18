@@ -1,4 +1,3 @@
-// screens/QRGeneratorScreen.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import {
   ScrollView,
@@ -14,6 +13,7 @@ import CustomButton from '../components/CustomButton';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import { captureRef } from 'react-native-view-shot';
 import Card from '../components/Card';
 
@@ -23,7 +23,10 @@ export default function QRGeneratorScreen() {
   const visitante = route.params?.visitante;
 
   const badgeRef = useRef<View>(null);
+  const invisibleBadgeRef = useRef<View>(null); // Para el badge a capturar fuera de pantalla
+  const qrRef = useRef<any>(null);
   const [qrValue, setQrValue] = useState('');
+  const [qrBase64, setQrBase64] = useState<string | null>(null); // QR en base64 para imagen
   const [nombre, setNombre] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [mensajeQR, setMensajeQR] = useState('');
@@ -59,6 +62,7 @@ export default function QRGeneratorScreen() {
     })();
   }, []);
 
+  // Generar el valor del QR y luego convertirlo a base64 (PNG)
   const handleGenerarQR = () => {
     if (!nombre || !numeroCasa || !visitante) {
       Alert.alert(
@@ -81,20 +85,35 @@ export default function QRGeneratorScreen() {
     setMensajeQR(
       `👤 ${nombre} le ha enviado una invitación de acceso. Presente este pase en vigilancia.`
     );
+
+    // Espera a que el QR se renderice y luego obtén la imagen base64
+    setTimeout(() => {
+      if (qrRef.current) {
+        qrRef.current.toDataURL((data: string) => {
+          setQrBase64(data);
+        });
+      }
+    }, 500);
   };
 
+  // Compartir el badge completo, renderizado invisible con el QR como imagen
   const handleCompartirBadge = async () => {
-    if (!badgeRef.current) {
-      Alert.alert('Primero genera el pase');
+    if (!qrBase64) {
+      Alert.alert('Primero genera el pase y espera que aparezca el QR');
       return;
     }
     try {
-      const uri = await captureRef(badgeRef, { format: 'png', quality: 1 });
+      // Captura la vista invisible (badge completo)
+      const uri = await captureRef(invisibleBadgeRef, {
+        format: 'png',
+        quality: 1,
+      });
+
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         dialogTitle: 'Compartir pase de visitante',
       });
-    } catch {
+    } catch (error) {
       Alert.alert('Error', 'No se pudo compartir el pase');
     }
   };
@@ -120,16 +139,39 @@ export default function QRGeneratorScreen() {
 
       <CustomButton title="Generar pase" onPress={handleGenerarQR} />
 
+      {/* Badge visible, con el QR SVG */}
       {qrValue !== '' && (
         <Card style={styles.card}>
-          <View ref={badgeRef} style={styles.badge}>
+          <View ref={badgeRef} style={styles.badge} collapsable={false}>
             <Image source={require('../assets/image.png')} style={styles.logo} />
             <Text style={styles.badgeTitle}>NEIGHNET</Text>
-            <QRCode value={qrValue} size={180} />
+            {/* QR en SVG para mostrar en pantalla */}
+            <QRCode value={qrValue} size={180} getRef={(c) => (qrRef.current = c)} />
             <Text style={styles.badgeMessage}>{mensajeQR}</Text>
           </View>
           <CustomButton title="Compartir pase" onPress={handleCompartirBadge} />
         </Card>
+      )}
+
+      {/* Badge invisible, renderizado fuera de pantalla, con el QR como imagen */}
+      {qrBase64 && (
+        <View
+          ref={invisibleBadgeRef}
+          style={[
+            styles.badge,
+            { position: 'absolute', top: -1000, left: -1000, opacity: 0 },
+          ]}
+          collapsable={false}
+        >
+          <Image source={require('../assets/image.png')} style={styles.logo} />
+          <Text style={styles.badgeTitle}>NEIGHNET</Text>
+          {/* QR como imagen PNG en base64 */}
+          <Image
+            source={{ uri: `data:image/png;base64,${qrBase64}` }}
+            style={{ width: 180, height: 180 }}
+          />
+          <Text style={styles.badgeMessage}>{mensajeQR}</Text>
+        </View>
       )}
 
       <CustomButton title="Volver" onPress={() => navigation.goBack()} />
@@ -153,9 +195,7 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
   },
-  infoBox: {
-    // solo padding interno, Card ya aporta sombra y radio
-  },
+  infoBox: {},
   infoText: {
     fontSize: 16,
     marginBottom: 4,
@@ -171,6 +211,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#1e90ff',
     alignItems: 'center',
+    // Lo siguiente es importante para capturas limpias
+    width: 260,
+    alignSelf: 'center',
   },
   logo: {
     width: 60,
