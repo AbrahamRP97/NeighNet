@@ -16,6 +16,7 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 import { captureRef } from 'react-native-view-shot';
 import Card from '../components/Card';
+import { useTheme } from '../context/ThemeContext'; // Importar useTheme
 
 export default function QRGeneratorScreen() {
   const navigation = useNavigation<any>();
@@ -30,6 +31,8 @@ export default function QRGeneratorScreen() {
   const [nombre, setNombre] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [mensajeQR, setMensajeQR] = useState('');
+
+  const { theme } = useTheme(); // Agregar aquí
 
   useEffect(() => {
     if (!visitante) {
@@ -119,20 +122,27 @@ export default function QRGeneratorScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🎫 Pase de visitante</Text>
+    <ScrollView contentContainerStyle={[
+      styles.container,
+      { backgroundColor: theme.colors.background }
+    ]}>
+      <Text style={[styles.title, { color: theme.colors.primary }]}>
+        🎫 Pase de visitante
+      </Text>
 
       <Card style={styles.card}>
         <View style={styles.infoBox}>
-          <Text style={styles.infoText}>
-            👤 Residente: <Text style={styles.highlight}>{nombre}</Text>
+          <Text style={[styles.infoText, { color: theme.colors.text }]}>
+            👤 Residente: <Text style={[styles.highlight, { color: theme.colors.primary }]}>{nombre}</Text>
           </Text>
-          <Text style={styles.infoText}>
-            🏡 Casa: <Text style={styles.highlight}>{numeroCasa}</Text>
+          <Text style={[styles.infoText, { color: theme.colors.text }]}>
+            🏡 Casa: <Text style={[styles.highlight, { color: theme.colors.primary }]}>{numeroCasa}</Text>
           </Text>
-          <Text style={styles.infoText}>
+          <Text style={[styles.infoText, { color: theme.colors.text }]}>
             👥 Visitante:{' '}
-            <Text style={styles.highlight}>{visitante?.nombre || 'No definido'}</Text>
+            <Text style={[styles.highlight, { color: theme.colors.primary }]}>
+              {visitante?.nombre || 'No definido'}
+            </Text>
           </Text>
         </View>
       </Card>
@@ -142,12 +152,18 @@ export default function QRGeneratorScreen() {
       {/* Badge visible, con el QR SVG */}
       {qrValue !== '' && (
         <Card style={styles.card}>
-          <View ref={badgeRef} style={styles.badge} collapsable={false}>
+          <View ref={badgeRef} style={[
+            styles.badge,
+            {
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.primary,
+            }
+          ]} collapsable={false}>
             <Image source={require('../assets/image.png')} style={styles.logo} />
-            <Text style={styles.badgeTitle}>NEIGHNET</Text>
+            <Text style={[styles.badgeTitle, { color: theme.colors.primary }]}>NEIGHNET</Text>
             {/* QR en SVG para mostrar en pantalla */}
             <QRCode value={qrValue} size={180} getRef={(c) => (qrRef.current = c)} />
-            <Text style={styles.badgeMessage}>{mensajeQR}</Text>
+            <Text style={[styles.badgeMessage, { color: theme.colors.text }]}>{mensajeQR}</Text>
           </View>
           <CustomButton title="Compartir pase" onPress={handleCompartirBadge} />
         </Card>
@@ -159,18 +175,25 @@ export default function QRGeneratorScreen() {
           ref={invisibleBadgeRef}
           style={[
             styles.badge,
-            { position: 'absolute', top: -1000, left: -1000, opacity: 0 },
+            {
+              position: 'absolute',
+              top: -1000,
+              left: -1000,
+              opacity: 0,
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.primary,
+            }
           ]}
           collapsable={false}
         >
           <Image source={require('../assets/image.png')} style={styles.logo} />
-          <Text style={styles.badgeTitle}>NEIGHNET</Text>
+          <Text style={[styles.badgeTitle, { color: theme.colors.primary }]}>NEIGHNET</Text>
           {/* QR como imagen PNG en base64 */}
           <Image
             source={{ uri: `data:image/png;base64,${qrBase64}` }}
             style={{ width: 180, height: 180 }}
           />
-          <Text style={styles.badgeMessage}>{mensajeQR}</Text>
+          <Text style={[styles.badgeMessage, { color: theme.colors.text }]}>{mensajeQR}</Text>
         </View>
       )}
 
@@ -183,12 +206,12 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
-    backgroundColor: '#f5faff',
+    // backgroundColor eliminado, se pone dinámico arriba
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e90ff',
+    // color eliminado, se pone dinámico arriba
     textAlign: 'center',
     marginVertical: 20,
   },
@@ -199,19 +222,19 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     marginBottom: 4,
+    // color eliminado, se pone dinámico arriba
   },
   highlight: {
     fontWeight: 'bold',
-    color: '#2c3e50',
+    // color eliminado, se pone dinámico arriba
   },
   badge: {
     padding: 20,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    // backgroundColor eliminado, se pone dinámico
     borderWidth: 2,
-    borderColor: '#1e90ff',
+    // borderColor eliminado, se pone dinámico
     alignItems: 'center',
-    // Lo siguiente es importante para capturas limpias
     width: 260,
     alignSelf: 'center',
   },
@@ -223,13 +246,13 @@ const styles = StyleSheet.create({
   badgeTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1e90ff',
+    // color eliminado, se pone dinámico arriba
     marginVertical: 8,
   },
   badgeMessage: {
     marginTop: 12,
     fontSize: 14,
-    color: '#333',
+    // color eliminado, se pone dinámico arriba
     textAlign: 'center',
   },
 });

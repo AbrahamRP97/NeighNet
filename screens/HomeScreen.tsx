@@ -10,13 +10,15 @@ import {
   ActivityIndicator,
   Pressable,
   KeyboardAvoidingView,
-  Platform,
+  Platform
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { POSTS_BASE_URL } from '../api';
 import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
+import { supabase } from '../lib/supabase';
+import { RefreshCw } from 'lucide-react-native';
 
 interface Props {
   userName: string;
@@ -33,6 +35,7 @@ export default function HomeScreen({ userName }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [mensaje, setMensaje] = useState('');
   const [imagen, setImagen] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const { theme: t } = useTheme();
   const styles = makeStyles(t);
@@ -54,6 +57,7 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
+  // Seleccionar imagen y guardar URI temporal
   const seleccionarImagen = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -65,11 +69,52 @@ export default function HomeScreen({ userName }: Props) {
       quality: 0.7,
       allowsEditing: true,
     });
-    if (!result.canceled) {
+    if (!result.canceled && result.assets.length > 0) {
       setImagen(result.assets[0].uri);
     }
   };
 
+  // Subir imagen a Supabase Storage
+  const subirImagen = async (uri: string, userId: string) => {
+    try {
+      const match = /\.(\w+)$/.exec(uri);
+      const fileExt = match ? match[1].toLowerCase() : 'jpg';
+      const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      let contentType = 'application/octet-stream';
+      if (fileExt === 'jpg' || fileExt === 'jpeg') contentType = 'image/jpeg';
+      if (fileExt === 'png') contentType = 'image/png';
+      if (fileExt === 'webp') contentType = 'image/webp';
+
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      const { error } = await supabase.storage
+        .from('posts')
+        .upload(fileName, blob, {
+          contentType,
+          upsert: true,
+          metadata: { owner: userId },
+        });
+
+      if (error) {
+        Alert.alert('Error', `No se pudo subir la imagen: ${error.message}`);
+        return null;
+      }
+
+      // Obtener URL pública
+      const { data } = supabase
+        .storage
+        .from('posts')
+        .getPublicUrl(fileName);
+
+      return data?.publicUrl || null;
+    } catch {
+      Alert.alert('Error', 'Error inesperado al subir la imagen');
+      return null;
+    }
+  };
+
+  // Publicar post (con o sin imagen)
   const publicar = async () => {
     if (!mensaje.trim()) {
       Alert.alert('Escribe un mensaje para publicar');
@@ -80,15 +125,28 @@ export default function HomeScreen({ userName }: Props) {
       Alert.alert('Error de sesión');
       return;
     }
+
+    setUploading(true);
+    setLoadingPosts(true);
+    let imagen_url = null;
+
+    if (imagen) {
+      imagen_url = await subirImagen(imagen, userId);
+      if (!imagen_url) {
+        setUploading(false);
+        setLoadingPosts(false);
+        return;
+      }
+    }
+
     try {
-      setLoadingPosts(true);
       await fetch(`${POSTS_BASE_URL}/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userId,
           mensaje,
-          imagen_url: null,
+          imagen_url,
         }),
       });
       setMensaje('');
@@ -97,6 +155,7 @@ export default function HomeScreen({ userName }: Props) {
     } catch {
       Alert.alert('Error al publicar');
     } finally {
+      setUploading(false);
       setLoadingPosts(false);
     }
   };
@@ -128,6 +187,14 @@ export default function HomeScreen({ userName }: Props) {
     </Card>
   );
 
+  // Refrescar posts al hacer pull-to-refresh
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await obtenerPosts();
+    setRefreshing(false);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -145,7 +212,10 @@ export default function HomeScreen({ userName }: Props) {
           value={mensaje}
           onChangeText={setMensaje}
         />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        {imagen && (
+          <Image source={{ uri: imagen }} style={styles.previewImage} />
+        )}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Pressable
             onPress={seleccionarImagen}
             style={({ pressed }) => [
@@ -163,8 +233,9 @@ export default function HomeScreen({ userName }: Props) {
               styles.publishButton,
               { opacity: pressed ? 0.8 : 1 },
             ]}
+            disabled={uploading || loadingPosts}
           >
-            {loadingPosts ? (
+            {uploading || loadingPosts ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.publishButtonText}>Publicar</Text>
@@ -173,7 +244,14 @@ export default function HomeScreen({ userName }: Props) {
         </View>
       </Card>
 
-      {loadingPosts ? (
+      <View style={styles.refreshBar}>
+        <Pressable onPress={onRefresh} style={styles.refreshButton}>
+          <RefreshCw color={t.colors.primary} size={22} />
+        </Pressable>
+        <Text style={styles.refreshText}>Desliza arriba para actualizar</Text>
+      </View>
+
+      {loadingPosts && !refreshing ? (
         <ActivityIndicator size="large" color={t.colors.primary} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
@@ -181,6 +259,8 @@ export default function HomeScreen({ userName }: Props) {
           keyExtractor={p => p.id}
           renderItem={renderItem}
           contentContainerStyle={styles.postList}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
         />
       )}
     </KeyboardAvoidingView>
@@ -214,6 +294,12 @@ const makeStyles = (theme: any) =>
       fontSize: theme.fontSize.body,
       marginBottom: theme.spacing.m,
       color: theme.colors.text,
+    },
+    previewImage: {
+      width: '100%',
+      height: 180,
+      borderRadius: theme.borderRadius.m,
+      marginBottom: theme.spacing.s,
     },
     imageButton: {
       padding: theme.spacing.s,
@@ -276,5 +362,20 @@ const makeStyles = (theme: any) =>
       fontSize: theme.fontSize.small,
       color: theme.colors.placeholder,
       textAlign: 'right',
+    },
+    refreshBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 2,
+      justifyContent: 'center',
+      gap: 8,
+    },
+    refreshButton: {
+      marginRight: 8,
+      padding: 6,
+    },
+    refreshText: {
+      fontSize: 13,
+      color: theme.colors.placeholder,
     },
   });

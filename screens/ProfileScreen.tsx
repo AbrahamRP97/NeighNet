@@ -1,15 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Switch,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, ScrollView, Image, TouchableOpacity, Switch } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 import * as ImagePicker from 'expo-image-picker';
@@ -19,6 +9,7 @@ import { LogOut, Pencil, X as CloseIcon } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
 import LinearGradient from 'react-native-linear-gradient';
+
 
 export default function ProfileScreen() {
   const { theme, themeType, toggleTheme } = useTheme();
@@ -95,55 +86,86 @@ export default function ProfileScreen() {
       // OBTENER extensión y tipo de contenido
       const match = /\.(\w+)$/.exec(localUri);
       const fileExt = match ? match[1].toLowerCase() : 'jpg';
+      
       const contentType =
-        fileExt === 'png'
+        result.assets[0].mimeType || 
+        (fileExt === 'png'
           ? 'image/png'
           : fileExt === 'jpeg' || fileExt === 'jpg'
           ? 'image/jpeg'
-          : 'application/octet-stream';
+          : 'application/octet-stream');
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
+      console.log('[SUBIDA] localUri:', localUri, 'fileName:', fileName, 'contentType:', contentType);
 
       // CONVERTIR URI local a blob
-      const response = await fetch(localUri);
-      const blob = await response.blob();
+      let response, blob;
+      try {
+        response = await fetch(localUri);
+        blob = await response.blob();
+      } catch (err) {
+        console.log('[SUBIDA] Error convirtiendo a blob:', err);
+        Alert.alert('Error', 'No se pudo leer la imagen local');
+        setUploading(false);
+        setFotoBase('');
+        return;
+      }
 
       // SUBIR a Supabase Storage
-      const { error } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, blob, {
-          contentType,
-          upsert: true,
-        });
+      let uploadResponse;
+      try {
+        uploadResponse = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+      } catch (err) {
+        console.log('[SUBIDA] Error en upload():', err);
+        Alert.alert('Error', 'Fallo inesperado al subir');
+        setUploading(false);
+        setFotoBase('');
+        return;
+      }
 
-      if (error) {
-        Alert.alert('Error', `No se pudo subir la imagen: ${error.message}`);
+      if (uploadResponse.error) {
+        console.log('[SUBIDA] uploadResponse.error:', uploadResponse.error);
+        Alert.alert('Error', `No se pudo subir la imagen: ${uploadResponse.error.message}`);
         setUploading(false);
         setFotoBase('');
         return;
       }
 
       // OBTENER URL pública
-      const { data } = supabase
-        .storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-
-      const publicUrlData = data?.publicUrl;
-      if (publicUrlData) {
-        setFoto(publicUrlData); // Actualiza el estado con la URL pública
+      let publicUrlData;
+      try {
+        const { data } = supabase
+          .storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+        publicUrlData = data?.publicUrl;
+      } catch (err) {
+        console.log('[SUBIDA] Error obteniendo URL pública:', err);
+        Alert.alert('Error', 'No se pudo obtener la URL pública de la imagen');
+        setFotoBase('');
+        setUploading(false);
+        return;
       }
-      else {
+
+      if (publicUrlData) {
+        setFoto(publicUrlData);
+      } else {
+        console.log('[SUBIDA] publicUrlData está vacío');
         Alert.alert('Error', 'No se pudo obtener la URL pública de la imagen');
         setFotoBase('');
       }
-    } catch {
+    } catch (err) {
+      console.log('[SUBIDA] Catch final:', err);
       Alert.alert('Error', 'Error al subir la imagen');
       setFotoBase('');
-      }
     }
     setUploading(false);
-  };
+  }
+};
 
   const guardarCambios = async () => {
     setLoading(true);
