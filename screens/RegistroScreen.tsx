@@ -1,7 +1,5 @@
-// screens/RegistroScreen.tsx
 import React, { useState } from 'react';
 import {
-  View,
   Text,
   StyleSheet,
   Alert,
@@ -16,6 +14,7 @@ import { useNavigation } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import NetInfo from '@react-native-community/netinfo';
 import Card from '../components/Card';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../theme';
 
@@ -76,9 +75,20 @@ export default function RegistroScreen() {
         Alert.alert('Error', data.error || 'No se pudo registrar');
         return;
       }
-      Alert.alert('Éxito', 'Cuenta creada', [
-        { text: 'OK', onPress: () => navigation.replace('Login') },
-      ]);
+      const { data: userData, token } = data;
+      if (userData && userData[0] && token) {
+        // Guarda sesión automática
+        await AsyncStorage.setItem('userId', userData[0].id);
+        await AsyncStorage.setItem('userName', userData[0].nombre);
+        await AsyncStorage.setItem('userRole', userData[0].rol || 'residente');
+        await AsyncStorage.setItem('token', token);
+        navigation.replace('Main', { userName: userData[0].nombre });
+      } else {
+        // Si tu backend solo devuelve el mensaje, pide login manual.
+        Alert.alert('Éxito', 'Cuenta creada', [
+          { text: 'OK', onPress: () => navigation.replace('Login') },
+        ]);
+      }
     } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar al servidor');
     } finally {

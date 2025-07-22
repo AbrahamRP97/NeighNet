@@ -1,4 +1,3 @@
-// screens/LoginScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -10,7 +9,6 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
@@ -62,14 +60,15 @@ export default function LoginScreen() {
         Alert.alert('Error', data.error || 'Credenciales inválidas');
         return;
       }
-      const { usuario } = data;
-      if (!usuario?.id || !usuario?.nombre) {
+      const { usuario, token } = data;
+      if (!usuario?.id || !usuario?.nombre || !token) {
         Alert.alert('Error', 'Datos del usuario incompletos');
         return;
       }
       await AsyncStorage.setItem('userId', usuario.id);
       await AsyncStorage.setItem('userName', usuario.nombre);
       await AsyncStorage.setItem('userRole', usuario.rol || 'residente');
+      await AsyncStorage.setItem('token', token);
       navigation.replace('Main', { userName: usuario.nombre });
     } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar al servidor');

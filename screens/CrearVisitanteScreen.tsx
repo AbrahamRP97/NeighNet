@@ -13,11 +13,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { VISITANTES_BASE_URL } from '../api';
 import Card from '../components/Card';
+import { useTheme } from '../context/ThemeContext';
 
 export default function CrearVisitanteScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const visitante = route.params?.visitante;
+  const { theme: t } = useTheme();
+  const styles = makeStyles(t);
 
   const [nombre, setNombre] = useState(visitante?.nombre||'');
   const [identidad, setIdentidad] = useState(visitante?.identidad||'');
@@ -52,7 +55,7 @@ export default function CrearVisitanteScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS==='ios'?'padding':undefined}
-      style={{flex:1}}
+      style={{flex:1, backgroundColor: t.colors.background}}
       keyboardVerticalOffset={100}
     >
       <ScrollView contentContainerStyle={styles.container}>
@@ -72,7 +75,7 @@ export default function CrearVisitanteScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container:{ flexGrow:1,padding:24,backgroundColor:'#f9fafe' },
-  title:{ fontSize:22,fontWeight:'bold',marginBottom:16,textAlign:'center',color:'#2c3e50' },
+const makeStyles = (theme: any) => StyleSheet.create({
+  container:{ flexGrow:1, padding:24, backgroundColor: theme.colors.background },
+  title:{ fontSize:22, fontWeight:'bold', marginBottom:16, textAlign:'center', color: theme.colors.primary },
 });

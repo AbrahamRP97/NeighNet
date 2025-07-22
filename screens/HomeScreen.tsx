@@ -20,6 +20,7 @@ import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { supabase } from '../lib/supabase'; // <--- Importa la instancia global
 
 interface Props {
   userName: string;
@@ -39,14 +40,18 @@ export default function HomeScreen({ userName }: Props) {
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
   const styles = makeStyles(t);
 
   useEffect(() => {
-    AsyncStorage.getItem('userId').then(setUserId);
-    obtenerPosts();
+    (async () => {
+      setUserId(await AsyncStorage.getItem('userId'));
+      setToken(await AsyncStorage.getItem('token'));
+      obtenerPosts();
+    })();
   }, []);
 
   // Botón de actualizar en la esquina superior derecha
@@ -98,7 +103,6 @@ export default function HomeScreen({ userName }: Props) {
 
   const subirImagen = async (uri: string): Promise<string | null> => {
     try {
-      // OBTENER extensión y tipo de contenido
       const match = /\.(\w+)$/.exec(uri);
       const fileExt = match ? match[1].toLowerCase() : 'jpg';
       const contentType =
@@ -112,25 +116,21 @@ export default function HomeScreen({ userName }: Props) {
       const response = await fetch(uri);
       const blob = await response.blob();
 
-      // Sube a bucket 'posts'
-      // @ts-ignore
-      const { data, error } = await (supabase as any).storage
+      const uploadRes = await supabase.storage
         .from('posts')
         .upload(fileName, blob, {
           contentType,
           upsert: true,
         });
 
-      if (error) {
+      if (uploadRes.error) {
         return null;
       }
 
-      // Obtiene URL pública
-      // @ts-ignore
-      const { data: publicData } = (supabase as any).storage
+      const { data } = supabase.storage
         .from('posts')
         .getPublicUrl(fileName);
-      return publicData?.publicUrl || null;
+      return data?.publicUrl || null;
     } catch {
       return null;
     }
@@ -141,7 +141,7 @@ export default function HomeScreen({ userName }: Props) {
       Alert.alert('Escribe un mensaje para publicar');
       return;
     }
-    if (!userId) {
+    if (!userId || !token) {
       Alert.alert('Error de sesión');
       return;
     }
@@ -160,7 +160,10 @@ export default function HomeScreen({ userName }: Props) {
 
       await fetch(`${POSTS_BASE_URL}/create`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({
           user_id: userId,
           mensaje,
@@ -179,6 +182,10 @@ export default function HomeScreen({ userName }: Props) {
   };
 
   const eliminarPost = async (postId: string) => {
+    if (!token) {
+      Alert.alert('Error de sesión');
+      return;
+    }
     Alert.alert(
       '¿Eliminar publicación?',
       '¿Estás seguro de que deseas eliminar este post?',
@@ -190,7 +197,12 @@ export default function HomeScreen({ userName }: Props) {
           onPress: async () => {
             try {
               setLoadingPosts(true);
-              await fetch(`${POSTS_BASE_URL}/delete/${postId}`, { method: 'DELETE' });
+              await fetch(`${POSTS_BASE_URL}/${postId}`, {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              });
               obtenerPosts();
             } catch {
               Alert.alert('Error', 'No se pudo eliminar la publicación');

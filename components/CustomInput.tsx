@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   TextInput,
   StyleSheet,
   TextInputProps,
-  Text,
+  Animated,
   TouchableOpacity,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useTheme } from '../context/ThemeContext';
 
 interface CustomInputProps extends TextInputProps {
   value: string;
@@ -27,32 +28,100 @@ export default function CustomInput({
   secureTextEntry = false,
   ...rest
 }: CustomInputProps) {
+  const { theme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Animación de sombra y borde
+  const shadowAnim = useRef(new Animated.Value(0)).current;
+
+  const handleFocus = () => {
+    setIsFocused(true);
+    Animated.timing(shadowAnim, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    Animated.timing(shadowAnim, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const borderColor = hasError
+    ? theme.colors.error
+    : isFocused
+    ? theme.colors.primary
+    : theme.colors.placeholder;
+
+  const animatedShadow = shadowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 8],
+  });
+
+  const animatedStyle = {
+    borderColor,
+    shadowOpacity: shadowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.05, 0.18],
+    }),
+    shadowRadius: animatedShadow,
+    elevation: shadowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 2.5],
+    }),
+  };
 
   const isPassword = secureTextEntry;
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   return (
-    <View style={[styles.inputContainer, hasError && styles.errorBorder]}>
+    <Animated.View
+      style={[
+        styles.inputContainer,
+        {
+          backgroundColor: editable
+            ? theme.colors.card
+            : theme.colors.placeholder,
+        },
+        animatedStyle,
+      ]}
+    >
       <TextInput
-        style={[styles.input, !editable && styles.disabledInput]}
+        style={[
+          styles.input,
+          {
+            color: theme.colors.text,
+          },
+          !editable && styles.disabledInput,
+        ]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
         secureTextEntry={isPassword && !showPassword}
         editable={editable}
-        placeholderTextColor="#aaa"
+        placeholderTextColor={theme.colors.placeholder}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         {...rest}
       />
       {isPassword && (
-        <TouchableOpacity onPress={togglePasswordVisibility} style={styles.eyeIcon}>
-          <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color="#999" />
+        <TouchableOpacity
+          onPress={() => setShowPassword((prev) => !prev)}
+          style={styles.eyeIcon}
+        >
+          <Feather
+            name={showPassword ? 'eye' : 'eye-off'}
+            size={21}
+            color={theme.colors.placeholder}
+          />
         </TouchableOpacity>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -60,27 +129,30 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderRadius: 9,
     marginBottom: 12,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 0,
+    // sombra iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowColor: '#000',
+    backgroundColor: '#fff', // se sobrescribe con theme
   },
   input: {
     flex: 1,
     height: 48,
     fontSize: 16,
-    color: '#333',
+    paddingVertical: 12,
   },
   disabledInput: {
-    backgroundColor: '#f0f0f0',
     color: '#888',
-  },
-  errorBorder: {
-    borderColor: '#e74c3c',
   },
   eyeIcon: {
     paddingLeft: 10,
+    paddingRight: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 48,
   },
 });
