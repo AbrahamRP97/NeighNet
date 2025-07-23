@@ -18,11 +18,12 @@ import TabsNavigator from './screens/TabsNavigator';
 import VisitantesScreen from './screens/VisitantesScreen';
 import CrearVisitanteScreen from './screens/CrearVisitanteScreen';
 import QRGeneratorScreen from './screens/QRGeneratorScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 
 const Stack = createNativeStackNavigator();
 
 const linking = {
-  prefixes: ['neighnet2://'],
+  prefixes: ['neighnet://'],
   config: { screens: { ResetPassword: 'reset-password' } },
   async getInitialURL() {
     try {
@@ -54,7 +55,7 @@ function AppContent() {
           <Stack.Screen name="Registro" component={RegistroScreen} />
           <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
           <Stack.Screen name="Main" component={TabsNavigator} />
-          <Stack.Screen name="ResetPassword" component={ForgotPasswordScreen} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
           <Stack.Screen name="Visitantes" component={VisitantesScreen} />
           <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
           <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />

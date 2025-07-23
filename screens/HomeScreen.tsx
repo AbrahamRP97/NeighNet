@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,7 +21,7 @@ import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase'; // <--- Importa la instancia global
+import { supabase } from '../lib/supabase';
 
 interface Props {
   userName: string;
@@ -42,6 +43,13 @@ export default function HomeScreen({ userName }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
+  // Para editar post
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editMensaje, setEditMensaje] = useState('');
+  const [editImagen, setEditImagen] = useState<string | null>(null);
+  const [editPostId, setEditPostId] = useState<string | null>(null);
+  const [loadingEdit, setLoadingEdit] = useState(false);
+
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
   const styles = makeStyles(t);
@@ -54,7 +62,6 @@ export default function HomeScreen({ userName }: Props) {
     })();
   }, []);
 
-  // Botón de actualizar en la esquina superior derecha
   useEffect(() => {
     navigation.setOptions?.({
       headerRight: () => (
@@ -79,7 +86,6 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
-  // Pull to refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     obtenerPosts();
@@ -112,7 +118,6 @@ export default function HomeScreen({ userName }: Props) {
           ? 'image/jpeg'
           : 'application/octet-stream';
       const fileName = `${userId}-${Date.now()}.${fileExt}`;
-
       const response = await fetch(uri);
       const blob = await response.blob();
 
@@ -147,7 +152,6 @@ export default function HomeScreen({ userName }: Props) {
     }
     try {
       setLoadingPosts(true);
-
       let imageUrl: string | null = null;
       if (imagen) {
         imageUrl = await subirImagen(imagen);
@@ -165,7 +169,6 @@ export default function HomeScreen({ userName }: Props) {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          user_id: userId,
           mensaje,
           imagen_url: imageUrl,
         }),
@@ -215,6 +218,73 @@ export default function HomeScreen({ userName }: Props) {
     );
   };
 
+  // --- EDICIÓN DE POST ---
+  const openEditModal = (post: Post) => {
+    setEditMensaje(post.mensaje);
+    setEditImagen(post.imagen_url || null);
+    setEditPostId(post.id);
+    setEditModalVisible(true);
+  };
+
+  const seleccionarImagenEdicion = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permiso requerido', 'Se necesita acceso a las fotos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      allowsEditing: true,
+    });
+    if (!result.canceled) {
+      setEditImagen(result.assets[0].uri);
+    }
+  };
+
+  const actualizarPost = async () => {
+    if (!editPostId || !token) return;
+    if (!editMensaje.trim()) {
+      Alert.alert('Escribe un mensaje');
+      return;
+    }
+    setLoadingEdit(true);
+
+    let imageUrl: string | null = editImagen;
+    // Si la imagen fue cambiada (es un URI local)
+    if (editImagen && editImagen.startsWith('file')) {
+      imageUrl = await subirImagen(editImagen);
+      if (!imageUrl) {
+        Alert.alert('Error', 'Error inesperado al subir la imagen');
+        setLoadingEdit(false);
+        return;
+      }
+    }
+
+    try {
+      await fetch(`${POSTS_BASE_URL}/${editPostId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          mensaje: editMensaje,
+          imagen_url: imageUrl,
+        }),
+      });
+      setEditModalVisible(false);
+      setEditMensaje('');
+      setEditImagen(null);
+      setEditPostId(null);
+      obtenerPosts();
+    } catch {
+      Alert.alert('Error al actualizar');
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
   const getGreeting = () => {
     const h = new Date().getHours();
     if (h < 12) return 'Buen día';
@@ -222,30 +292,47 @@ export default function HomeScreen({ userName }: Props) {
     return 'Buena noche';
   };
 
-  const renderItem = ({ item }: { item: Post }) => (
-    <Card style={styles.post}>
-      <View style={styles.userInfo}>
-        {item.usuarios.foto_url ? (
-          <Image source={{ uri: item.usuarios.foto_url }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder} />
-        )}
-        <Text style={styles.username}>{item.usuarios.nombre}</Text>
-        {userId && item.usuarios.id === userId && (
-          <Pressable onPress={() => eliminarPost(item.id)} style={{ marginLeft: 10 }}>
-            <Ionicons name="trash" size={20} color="red" />
-          </Pressable>
-        )}
-      </View>
-      <Text style={styles.message}>{item.mensaje}</Text>
-      {item.imagen_url ? (
-        <Image source={{ uri: item.imagen_url }} style={styles.postImage} />
-      ) : null}
-      <Text style={styles.timestamp}>
-        {new Date(item.created_at).toLocaleString()}
-      </Text>
-    </Card>
-  );
+  const renderItem = ({ item }: { item: Post }) => {
+    const isMine = userId && item.usuarios.id === userId;
+    return (
+      <Card style={styles.post}>
+        <View style={styles.userInfo}>
+          {item.usuarios.foto_url ? (
+            <Image source={{ uri: item.usuarios.foto_url }} style={styles.avatar} />
+          ) : (
+            <View style={styles.avatarPlaceholder} />
+          )}
+          <Text style={styles.username}>{item.usuarios.nombre}</Text>
+          {isMine && (
+            <Pressable
+              style={{ marginLeft: 10, padding: 4 }}
+              onPress={() => {
+                // Opciones: Editar / Eliminar
+                Alert.alert(
+                  'Opciones',
+                  '',
+                  [
+                    { text: 'Editar', onPress: () => openEditModal(item) },
+                    { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
+                    { text: 'Cancelar', style: 'cancel' },
+                  ]
+                );
+              }}
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
+            </Pressable>
+          )}
+        </View>
+        <Text style={styles.message}>{item.mensaje}</Text>
+        {item.imagen_url ? (
+          <Image source={{ uri: item.imagen_url }} style={styles.postImage} />
+        ) : null}
+        <Text style={styles.timestamp}>
+          {new Date(item.created_at).toLocaleString()}
+        </Text>
+      </Card>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -255,6 +342,7 @@ export default function HomeScreen({ userName }: Props) {
     >
       <Text style={styles.header}>{getGreeting()}, {userName}</Text>
 
+      {/* NUEVO POST */}
       <Card style={styles.newPost}>
         <TextInput
           style={styles.input}
@@ -297,6 +385,7 @@ export default function HomeScreen({ userName }: Props) {
         </View>
       </Card>
 
+      {/* LISTA DE POSTS */}
       {loadingPosts ? (
         <ActivityIndicator size="large" color={t.colors.primary} style={{ marginTop: 20 }} />
       ) : (
@@ -314,6 +403,63 @@ export default function HomeScreen({ userName }: Props) {
           }
         />
       )}
+
+      {/* MODAL DE EDICIÓN */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Editar publicación</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Mensaje"
+              placeholderTextColor={t.colors.placeholder}
+              multiline
+              value={editMensaje}
+              onChangeText={setEditMensaje}
+            />
+            {editImagen && (
+              <View style={{ alignItems: 'center', marginBottom: t.spacing.s }}>
+                <Image source={{ uri: editImagen }} style={{ width: 120, height: 120, borderRadius: 8 }} />
+              </View>
+            )}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Pressable
+                onPress={seleccionarImagenEdicion}
+                style={({ pressed }) => [
+                  styles.imageButton,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={[styles.imageButtonText, { color: t.colors.primary }]}>
+                  {editImagen ? 'Cambiar imagen' : 'Agregar imagen'}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={actualizarPost}
+                style={({ pressed }) => [
+                  styles.publishButton,
+                  { opacity: pressed ? 0.8 : 1 },
+                ]}
+                disabled={loadingEdit}
+              >
+                {loadingEdit ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.publishButtonText}>Guardar</Text>
+                )}
+              </Pressable>
+            </View>
+            <Pressable onPress={() => setEditModalVisible(false)} style={styles.cancelButton}>
+              <Text style={{ color: t.colors.primary, fontWeight: '600', textAlign: 'center' }}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -407,5 +553,27 @@ const makeStyles = (theme: any) =>
       fontSize: theme.fontSize.small,
       color: theme.colors.placeholder,
       textAlign: 'right',
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.35)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContainer: {
+      backgroundColor: theme.colors.card,
+      padding: 24,
+      borderRadius: theme.borderRadius.l,
+      width: '90%',
+    },
+    modalTitle: {
+      fontSize: theme.fontSize.title,
+      fontWeight: 'bold',
+      color: theme.colors.primary,
+      marginBottom: 18,
+      textAlign: 'center',
+    },
+    cancelButton: {
+      marginTop: 14,
     },
   });

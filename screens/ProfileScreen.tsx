@@ -1,16 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  StyleSheet,
-  Alert,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Switch,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, Alert, ScrollView, Image, TouchableOpacity, Switch, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 import * as ImagePicker from 'expo-image-picker';
@@ -28,14 +17,12 @@ export default function ProfileScreen() {
   const [telefono, setTelefono] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [foto, setFoto] = useState('');
-  const [fotoBase, setFotoBase] = useState(''); // para preview local
+  const [fotoBase, setFotoBase] = useState('');
   const [editando, setEditando] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-
   const navigation = useNavigation<any>();
 
-  // Cargar perfil de usuario
   const cargarPerfil = async () => {
     setLoading(true);
     try {
@@ -68,7 +55,6 @@ export default function ProfileScreen() {
     cargarPerfil();
   }, []);
 
-  // Subir imagen de perfil
   const seleccionarImagen = async () => {
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
@@ -86,14 +72,17 @@ export default function ProfileScreen() {
 
       setUploading(true);
       try {
-        // OBTENER ID del usuario
         const userId = await AsyncStorage.getItem('userId');
-        if (!userId) throw new Error('No se encontró el ID del usuario');
+        if (!userId) {
+          Alert.alert('Error', 'No se encontró el ID del usuario');
+          setUploading(false);
+          setFotoBase('');
+          return;
+        }
 
-        // OBTENER extensión y tipo de contenido
+        // Obtiene la extensión y el tipo de contenido
         const match = /\.(\w+)$/.exec(localUri);
         const fileExt = match ? match[1].toLowerCase() : 'jpg';
-
         const contentType =
           result.assets[0].mimeType ||
           (fileExt === 'png'
@@ -103,61 +92,45 @@ export default function ProfileScreen() {
             : 'application/octet-stream');
         const fileName = `${userId}-${Date.now()}.${fileExt}`;
 
-        // Convertir URI local a blob
-        let response, blob;
-        try {
-          response = await fetch(localUri);
-          blob = await response.blob();
-        } catch (err) {
-          Alert.alert('Error', 'No se pudo leer la imagen local');
+        // Convierte la URI local a blob
+        let response = await fetch(localUri);
+        let blob = await response.blob();
+
+        // Sube la imagen al bucket "avatars"
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, blob, {
+            contentType,
+            upsert: true,
+          });
+
+        if (uploadError) {
+          Alert.alert('Error', `No se pudo subir la imagen: ${uploadError.message}`);
           setUploading(false);
           setFotoBase('');
           return;
         }
 
-        // SUBIR a Supabase Storage (bucket avatars)
-        let uploadResponse;
-        try {
-          uploadResponse = await supabase.storage
-            .from('avatars')
-            .upload(fileName, blob, {
-              contentType,
-              upsert: true,
-            });
-        } catch (err) {
-          Alert.alert('Error', 'Fallo inesperado al subir');
-          setUploading(false);
-          setFotoBase('');
-          return;
-        }
-
-        if (uploadResponse.error) {
-          Alert.alert('Error', `No se pudo subir la imagen: ${uploadResponse.error.message}`);
-          setUploading(false);
-          setFotoBase('');
-          return;
-        }
-
-        // OBTENER URL pública
-        const { data: publicData } = supabase.storage
+        // Obtiene la URL pública
+        const { data: publicData } = supabase
+          .storage
           .from('avatars')
           .getPublicUrl(fileName);
 
         if (publicData?.publicUrl) {
           setFoto(publicData.publicUrl);
         } else {
-          Alert.alert('Error', 'No se pudo obtener la URL pública');
+          Alert.alert('Error', 'No se pudo obtener la URL pública de la imagen');
           setFotoBase('');
         }
       } catch (err) {
-        Alert.alert('Error', 'Error al subir la imagen');
+        Alert.alert('Error', 'Fallo inesperado al subir');
         setFotoBase('');
       }
       setUploading(false);
     }
   };
 
-  // Guardar cambios en perfil
   const guardarCambios = async () => {
     setLoading(true);
     try {
@@ -172,7 +145,7 @@ export default function ProfileScreen() {
         correo,
         telefono,
         numero_casa: numeroCasa,
-        foto_url: foto, // <-- URL pública de Supabase
+        foto_url: foto, // <-- Se envía la URL pública al backend
       };
       const res = await fetch(`${AUTH_BASE_URL}/update/${userId}`, {
         method: 'PUT',
@@ -199,7 +172,6 @@ export default function ProfileScreen() {
     navigation.getParent()?.replace('Login');
   };
 
-  // Pantalla de carga shimmer
   if (loading) {
     return (
       <ScrollView
