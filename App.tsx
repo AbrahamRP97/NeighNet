@@ -19,6 +19,9 @@ import VisitantesScreen from './screens/VisitantesScreen';
 import CrearVisitanteScreen from './screens/CrearVisitanteScreen';
 import QRGeneratorScreen from './screens/QRGeneratorScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
+import OptionsScreen from './screens/OptionsScreen';
+import EditProfileScreen from './screens/EditProfileScreen';
+import ChangePasswordScreen from './screens/ChangePasswordScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -57,6 +60,9 @@ function AppContent() {
           <Stack.Screen name="Main" component={TabsNavigator} />
           <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
           <Stack.Screen name="Visitantes" component={VisitantesScreen} />
+          <Stack.Screen name="OptionsScreen" component={OptionsScreen} />
+          <Stack.Screen name="EditProfileScreen" component={EditProfileScreen} />
+          <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
           <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
           <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />
         </Stack.Navigator>
