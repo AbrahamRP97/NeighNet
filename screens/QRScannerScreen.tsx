@@ -1,239 +1,132 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Pressable,
-} from 'react-native';
-import { useCameraPermissions } from 'expo-camera';
-import { CameraView } from 'expo-camera';
+import { View, Text, StyleSheet, Alert, ActivityIndicator, Pressable, Platform } from 'react-native';
+import { Camera, CameraView } from 'expo-camera';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { CameraType } from 'expo-image-picker/build/ImagePicker.types';
-import { VIGILANCIA_BASE_URL } from '../api';
-import NetInfo from '@react-native-community/netinfo';
-import { useTheme } from '../context/ThemeContext';
-import type { Theme } from '../theme';
 
-type BarCodeScannedType = {
-  type: string;
-  data: string;
-};
+const BACKEND_URL = 'https://neighnet-backend.onrender.com/api/vigilancia/scan';
 
 export default function QRScannerScreen() {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const cameraRef = useRef<CameraView>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const cameraRef = useRef<CameraView | null>(null);
   const navigation = useNavigation<any>();
 
-  const { theme: t } = useTheme();
-  const styles = makeStyles(t);
-
   useEffect(() => {
-    const unsub = NetInfo.addEventListener((state) => {
-      if (!state.isConnected) {
-        Alert.alert('Sin conexión', 'No tienes conexión a internet.');
-      }
-    });
-    return unsub;
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+      setUserRole(await AsyncStorage.getItem('userRole'));
+      setToken(await AsyncStorage.getItem('token'));
+    })();
   }, []);
 
-  if (!permission) {
-    return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" color={t.colors.primary} />
-        <Text style={[styles.loadingText, { color: t.colors.text }]}>
-          Solicitando permisos...
-        </Text>
-      </View>
-    );
-  }
-  if (!permission.granted) {
-    return (
-      <View style={styles.centered}>
-        <Text style={[styles.errorText, { color: t.colors.error }]}>
-          Permiso para cámara denegado
-        </Text>
-        <Pressable
-          onPress={requestPermission}
-          android_ripple={{ color: t.colors.placeholder }}
-          style={({ pressed }) => [styles.btn, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={styles.btnText}>Solicitar permiso</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => navigation.goBack()}
-          android_ripple={{ color: t.colors.placeholder }}
-          style={({ pressed }) => [styles.btn, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={styles.btnText}>Volver</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const handleBarCodeScanned = async ({ data }: BarCodeScannedType) => {
+  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
     setScanned(true);
+
+    // Solo vigilancia puede escanear
+    if (userRole !== 'vigilancia') {
+      Alert.alert('Acceso denegado', 'Solo el personal de vigilancia puede escanear QR.');
+      setTimeout(() => setScanned(false), 1800);
+      return;
+    }
+
     setLoading(true);
-    let qrData;
+
     try {
-      qrData = JSON.parse(data.trim());
-    } catch {
-      Alert.alert('QR inválido', 'El código escaneado no es un JSON válido');
-      setLoading(false);
-      setScanned(false);
-      return;
-    }
-    if (!qrData.idUnico || !qrData.visitanteId) {
-      Alert.alert('QR inválido', 'Falta información en el código');
-      setLoading(false);
-      setScanned(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${VIGILANCIA_BASE_URL}/scan`, {
+      const res = await fetch(BACKEND_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id_qr: qrData.idUnico,
-          visitante_id: qrData.visitanteId,
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ id_qr: data }), // Solo envía el QR escaneado
       });
       const result = await res.json();
-      if (!res.ok) {
-        Alert.alert('❌ Error', result.error || 'No se pudo registrar la visita');
+
+      if (res.ok) {
+        if (result.message.includes('Entrada')) {
+          Alert.alert('Entrada registrada', 'El visitante ha ingresado.');
+        } else if (result.message.includes('Salida')) {
+          Alert.alert('Salida registrada', 'El visitante ha salido.');
+        } else {
+          Alert.alert('Éxito', result.message);
+        }
       } else {
-        const mensaje = result.message.includes('Salida')
-          ? '🚪 Salida registrada'
-          : '✅ Entrada registrada';
-        Alert.alert(mensaje, result.message);
+        // Error: QR ya usado o inválido
+        Alert.alert('Error', result.error || 'QR inválido o ya utilizado');
       }
-    } catch {
-      Alert.alert('Error', 'No se pudo conectar al servidor');
+    } catch (err) {
+      Alert.alert('Error', 'Fallo de conexión con el servidor');
     } finally {
       setLoading(false);
-      setTimeout(() => setScanned(false), 3000);
+      setTimeout(() => setScanned(false), 1800);
     }
   };
 
-  return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { color: t.colors.text }]}>
-        📸 Escáner de Código QR
-      </Text>
-      <View style={styles.cameraContainer}>
-        {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
-            <Text style={[styles.loadingText, { color: '#fff' }]}>
-              Procesando escaneo...
-            </Text>
-          </View>
-        )}
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing={CameraType.back}
-          onBarcodeScanned={scanned || loading ? undefined : handleBarCodeScanned}
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        />
-        <View style={[styles.focusBox, { borderColor: t.colors.primary }]} />
+  if (hasPermission === null) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+        <Text>Solicitando permiso de cámara...</Text>
       </View>
-
-      {scanned && !loading && (
-        <Pressable
-          onPress={() => setScanned(false)}
-          android_ripple={{ color: t.colors.placeholder }}
-          style={({ pressed }) => [styles.btn, { opacity: pressed ? 0.7 : 1 }]}
-        >
-          <Text style={styles.btnText}>Escanear otro</Text>
+    );
+  }
+  if (hasPermission === false) {
+    return (
+      <View style={styles.center}>
+        <Text>No se otorgó permiso para la cámara</Text>
+        <Pressable style={styles.closeButton} onPress={() => navigation.goBack()}>
+          <Ionicons name="close-circle" size={36} color="black" />
         </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1 }}>
+      <CameraView
+        ref={cameraRef}
+        style={{ flex: 1 }}
+        facing="back"
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['qr'],
+        }}
+      />
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#fff" />
+        </View>
       )}
-      <Pressable
-        onPress={() => navigation.goBack()}
-        android_ripple={{ color: t.colors.placeholder }}
-        style={({ pressed }) => [styles.btnOutline, { opacity: pressed ? 0.7 : 1 }]}
-      >
-        <Text style={[styles.btnText, { color: t.colors.primary }]}>
-          Volver
-        </Text>
+      <Pressable style={styles.closeButton} onPress={() => navigation.goBack()}>
+        <Ionicons name="close-circle" size={36} color="white" />
       </Pressable>
     </View>
   );
 }
 
-const makeStyles = (theme: Theme) =>
-  StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.colors.background,
-      padding: 16,
-    },
-    title: {
-      fontSize: 22,
-      textAlign: 'center',
-      marginVertical: 10,
-      fontWeight: '600',
-    },
-    cameraContainer: {
-      flex: 1,
-      borderRadius: 12,
-      overflow: 'hidden',
-      marginVertical: 12,
-      backgroundColor: '#000',
-    },
-    camera: {
-      flex: 1,
-    },
-    focusBox: {
-      position: 'absolute',
-      top: '30%',
-      left: '15%',
-      width: '70%',
-      height: '40%',
-      borderWidth: 2,
-      borderRadius: 8,
-    },
-    loadingOverlay: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10,
-    },
-    centered: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    loadingText: {
-      marginTop: 8,
-      fontSize: theme.fontSize.body,
-    },
-    errorText: {
-      fontSize: theme.fontSize.body,
-      marginBottom: 12,
-    },
-    btn: {
-      backgroundColor: theme.colors.primary,
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      marginVertical: 6,
-    },
-    btnOutline: {
-      borderColor: theme.colors.primary,
-      borderWidth: 1,
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignItems: 'center',
-      marginVertical: 6,
-    },
-    btnText: {
-      color: '#fff',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-  });
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 56 : 36,
+    right: 20,
+    zIndex: 20,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 99,
+  },
+});
