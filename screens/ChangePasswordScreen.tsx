@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
-import { ArrowLeft, Lock } from 'lucide-react-native';
+import { ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 
@@ -13,6 +21,11 @@ export default function ChangePasswordScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // States para visualizar/no visualizar cada campo
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -37,10 +50,10 @@ export default function ChangePasswordScreen() {
         return;
       }
       const payload = {
-        currentPassword,
+        oldPassword: currentPassword,
         newPassword,
       };
-      const res = await fetch(`${AUTH_BASE_URL}/change-password/${userId}`, {
+      const res = await fetch(`${AUTH_BASE_URL}/cambiar-contrasena/${userId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -77,10 +90,17 @@ export default function ChangePasswordScreen() {
           style={styles.input}
           placeholder="Contraseña actual"
           placeholderTextColor={theme.colors.placeholder}
-          secureTextEntry
+          secureTextEntry={!showCurrent}
           value={currentPassword}
           onChangeText={setCurrentPassword}
         />
+        <TouchableOpacity onPress={() => setShowCurrent(!showCurrent)}>
+          {showCurrent ? (
+            <EyeOff color={theme.colors.primary} size={22} />
+          ) : (
+            <Eye color={theme.colors.primary} size={22} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.inputGroup}>
@@ -89,10 +109,17 @@ export default function ChangePasswordScreen() {
           style={styles.input}
           placeholder="Nueva contraseña"
           placeholderTextColor={theme.colors.placeholder}
-          secureTextEntry
+          secureTextEntry={!showNew}
           value={newPassword}
           onChangeText={setNewPassword}
         />
+        <TouchableOpacity onPress={() => setShowNew(!showNew)}>
+          {showNew ? (
+            <EyeOff color={theme.colors.primary} size={22} />
+          ) : (
+            <Eye color={theme.colors.primary} size={22} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <View style={styles.inputGroup}>
@@ -101,10 +128,17 @@ export default function ChangePasswordScreen() {
           style={styles.input}
           placeholder="Confirmar nueva contraseña"
           placeholderTextColor={theme.colors.placeholder}
-          secureTextEntry
+          secureTextEntry={!showConfirm}
           value={confirmPassword}
           onChangeText={setConfirmPassword}
         />
+        <TouchableOpacity onPress={() => setShowConfirm(!showConfirm)}>
+          {showConfirm ? (
+            <EyeOff color={theme.colors.primary} size={22} />
+          ) : (
+            <Eye color={theme.colors.primary} size={22} />
+          )}
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity

@@ -13,23 +13,28 @@ import {
   Platform,
   RefreshControl,
   Modal,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { POSTS_BASE_URL } from '../api';
+import { POSTS_BASE_URL, UPLOADS_BASE_URL } from '../api';
 import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useProfile } from '../context/ProfileContext';
 
 interface Props {
   userName: string;
 }
+
 interface Post {
   id: string;
   mensaje: string;
-  imagen_url: string | null;
+  imagen_url: string | null;        // compat
+  imagenes_url?: string[] | null;   // multi-imagen opcional
   created_at: string;
   usuarios: { id: string; nombre: string; foto_url: string | null };
 }
@@ -37,22 +42,29 @@ interface Post {
 export default function HomeScreen({ userName }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [mensaje, setMensaje] = useState('');
-  const [imagen, setImagen] = useState<string | null>(null);
+  const [imagenes, setImagenes] = useState<string[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Para editar post
+  // Edición
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editMensaje, setEditMensaje] = useState('');
-  const [editImagen, setEditImagen] = useState<string | null>(null);
+  const [editImagenes, setEditImagenes] = useState<string[]>([]);
   const [editPostId, setEditPostId] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
 
+  // Preview fullscreen
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [previewImages, setPreviewImages] = useState<string[]>([]);
+  const [previewIndex, setPreviewIndex] = useState(0);
+
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
+  const { avatarUrl } = useProfile();
   const styles = makeStyles(t);
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
   useEffect(() => {
     (async () => {
@@ -61,6 +73,12 @@ export default function HomeScreen({ userName }: Props) {
       obtenerPosts();
     })();
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      obtenerPosts();
+    }, [])
+  );
 
   useEffect(() => {
     navigation.setOptions?.({
@@ -91,22 +109,33 @@ export default function HomeScreen({ userName }: Props) {
     obtenerPosts();
   }, []);
 
-  const seleccionarImagen = async () => {
+  // -------- Selección de imágenes (crear) --------
+  const seleccionarImagenes = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permiso requerido', 'Se necesita acceso a las fotos.');
       return;
     }
+
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
+      quality: 0.8,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
     });
+
     if (!result.canceled) {
-      setImagen(result.assets[0].uri);
+      const uris = result.assets.map(a => a.uri);
+      setImagenes(prev => [...prev, ...uris]);
     }
   };
 
+  const removeImagenNueva = (uri: string) => {
+    setImagenes(prev => prev.filter(u => u !== uri));
+  };
+
+  // -------- Subidas --------
   const subirImagen = async (uri: string): Promise<string | null> => {
     try {
       const match = /\.(\w+)$/.exec(uri);
@@ -117,30 +146,47 @@ export default function HomeScreen({ userName }: Props) {
           : fileExt === 'jpeg' || fileExt === 'jpg'
           ? 'image/jpeg'
           : 'application/octet-stream';
-      const fileName = `${userId}-${Date.now()}.${fileExt}`;
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const fileName = `${userId}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${fileExt}`;
+      const fileUri = uri.startsWith('file://') ? uri : 'file://' + uri;
 
-      const uploadRes = await supabase.storage
-        .from('posts')
-        .upload(fileName, blob, {
-          contentType,
-          upsert: true,
-        });
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!fileInfo.exists) return null;
 
-      if (uploadRes.error) {
-        return null;
-      }
+      const resp = await fetch(fileUri);
+      const blob = await resp.blob();
 
-      const { data } = supabase.storage
-        .from('posts')
-        .getPublicUrl(fileName);
-      return data?.publicUrl || null;
+      const signedRes = await fetch(`${UPLOADS_BASE_URL}/signed-url`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName, contentType, bucket: 'posts' }),
+      });
+      if (!signedRes.ok) return null;
+      const { signedUrl, publicUrl } = await signedRes.json();
+
+      const putResp = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: { 'content-type': contentType, 'x-upsert': 'true' },
+        body: blob,
+      });
+      if (!putResp.ok) return null;
+
+      return publicUrl || null;
     } catch {
       return null;
     }
   };
 
+  const subirImagenes = async (uris: string[]): Promise<string[] | null> => {
+    const results: string[] = [];
+    for (const uri of uris) {
+      const url = await subirImagen(uri);
+      if (!url) return null;
+      results.push(url);
+    }
+    return results;
+  };
+
+  // -------- Publicar --------
   const publicar = async () => {
     if (!mensaje.trim()) {
       Alert.alert('Escribe un mensaje para publicar');
@@ -150,16 +196,19 @@ export default function HomeScreen({ userName }: Props) {
       Alert.alert('Error de sesión');
       return;
     }
+
     try {
       setLoadingPosts(true);
-      let imageUrl: string | null = null;
-      if (imagen) {
-        imageUrl = await subirImagen(imagen);
-        if (!imageUrl) {
-          Alert.alert('Error', 'Error inesperado al subir la imagen');
+
+      let imageUrls: string[] = [];
+      if (imagenes.length > 0) {
+        const uploaded = await subirImagenes(imagenes);
+        if (!uploaded) {
+          Alert.alert('Error', 'Error al subir alguna de las imágenes');
           setLoadingPosts(false);
           return;
         }
+        imageUrls = uploaded;
       }
 
       await fetch(`${POSTS_BASE_URL}/create`, {
@@ -170,12 +219,13 @@ export default function HomeScreen({ userName }: Props) {
         },
         body: JSON.stringify({
           mensaje,
-          imagen_url: imageUrl,
+          imagen_url: imageUrls[0] || null, // compat
+          imagenes_url: imageUrls,          // multi
         }),
       });
 
       setMensaje('');
-      setImagen(null);
+      setImagenes([]);
       obtenerPosts();
     } catch {
       Alert.alert('Error al publicar');
@@ -184,6 +234,7 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
+  // -------- Eliminar --------
   const eliminarPost = async (postId: string) => {
     if (!token) {
       Alert.alert('Error de sesión');
@@ -202,9 +253,7 @@ export default function HomeScreen({ userName }: Props) {
               setLoadingPosts(true);
               await fetch(`${POSTS_BASE_URL}/${postId}`, {
                 method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
+                headers: { Authorization: `Bearer ${token}` },
               });
               obtenerPosts();
             } catch {
@@ -218,15 +267,22 @@ export default function HomeScreen({ userName }: Props) {
     );
   };
 
-  // --- EDICIÓN DE POST ---
+  // -------- Helpers --------
+  const getImagenesFromPost = (p: Post): string[] => {
+    if (Array.isArray(p.imagenes_url) && p.imagenes_url.length) return p.imagenes_url;
+    if (p.imagen_url) return [p.imagen_url];
+    return [];
+  };
+
+  // -------- Edición --------
   const openEditModal = (post: Post) => {
     setEditMensaje(post.mensaje);
-    setEditImagen(post.imagen_url || null);
+    setEditImagenes(getImagenesFromPost(post));
     setEditPostId(post.id);
     setEditModalVisible(true);
   };
 
-  const seleccionarImagenEdicion = async () => {
+  const seleccionarImagenesEdicion = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permiso requerido', 'Se necesita acceso a las fotos.');
@@ -234,12 +290,19 @@ export default function HomeScreen({ userName }: Props) {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
+      quality: 0.8,
+      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 10,
     });
     if (!result.canceled) {
-      setEditImagen(result.assets[0].uri);
+      const uris = result.assets.map(a => a.uri);
+      setEditImagenes(prev => [...prev, ...uris]);
     }
+  };
+
+  const removeImagenEdicion = (uri: string) => {
+    setEditImagenes(prev => prev.filter(u => u !== uri));
   };
 
   const actualizarPost = async () => {
@@ -250,16 +313,20 @@ export default function HomeScreen({ userName }: Props) {
     }
     setLoadingEdit(true);
 
-    let imageUrl: string | null = editImagen;
-    // Si la imagen fue cambiada (es un URI local)
-    if (editImagen && editImagen.startsWith('file')) {
-      imageUrl = await subirImagen(editImagen);
-      if (!imageUrl) {
-        Alert.alert('Error', 'Error inesperado al subir la imagen');
+    const locales = editImagenes.filter(u => u.startsWith('file:'));
+    const remotas = editImagenes.filter(u => !u.startsWith('file:'));
+
+    let nuevasSubidas: string[] = [];
+    if (locales.length) {
+      const up = await subirImagenes(locales);
+      if (!up) {
+        Alert.alert('Error', 'Error al subir alguna imagen');
         setLoadingEdit(false);
         return;
       }
+      nuevasSubidas = up;
     }
+    const finalUrls = [...remotas, ...nuevasSubidas];
 
     try {
       await fetch(`${POSTS_BASE_URL}/${editPostId}`, {
@@ -270,12 +337,13 @@ export default function HomeScreen({ userName }: Props) {
         },
         body: JSON.stringify({
           mensaje: editMensaje,
-          imagen_url: imageUrl,
+          imagen_url: finalUrls[0] || null, // compat
+          imagenes_url: finalUrls,          // multi
         }),
       });
       setEditModalVisible(false);
       setEditMensaje('');
-      setEditImagen(null);
+      setEditImagenes([]);
       setEditPostId(null);
       obtenerPosts();
     } catch {
@@ -283,6 +351,18 @@ export default function HomeScreen({ userName }: Props) {
     } finally {
       setLoadingEdit(false);
     }
+  };
+
+  // -------- Preview fullscreen --------
+  const openImagePreview = (images: string[], startIndex: number) => {
+    setPreviewImages(images);
+    setPreviewIndex(startIndex);
+    setPreviewVisible(true);
+  };
+  const closeImagePreview = () => {
+    setPreviewVisible(false);
+    setPreviewImages([]);
+    setPreviewIndex(0);
   };
 
   const getGreeting = () => {
@@ -294,11 +374,14 @@ export default function HomeScreen({ userName }: Props) {
 
   const renderItem = ({ item }: { item: Post }) => {
     const isMine = userId && item.usuarios.id === userId;
+    const finalAvatar = isMine ? avatarUrl : item.usuarios.foto_url;
+    const imgs = getImagenesFromPost(item);
+
     return (
       <Card style={styles.post}>
         <View style={styles.userInfo}>
-          {item.usuarios.foto_url ? (
-            <Image source={{ uri: item.usuarios.foto_url }} style={styles.avatar} />
+          {finalAvatar ? (
+            <Image source={{ uri: finalAvatar }} style={styles.avatar} key={finalAvatar} />
           ) : (
             <View style={styles.avatarPlaceholder} />
           )}
@@ -307,26 +390,50 @@ export default function HomeScreen({ userName }: Props) {
             <Pressable
               style={{ marginLeft: 10, padding: 4 }}
               onPress={() => {
-                // Opciones: Editar / Eliminar
-                Alert.alert(
-                  'Opciones',
-                  '',
-                  [
-                    { text: 'Editar', onPress: () => openEditModal(item) },
-                    { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
-                    { text: 'Cancelar', style: 'cancel' },
-                  ]
-                );
+                Alert.alert('Opciones', '', [
+                  { text: 'Editar', onPress: () => openEditModal(item) },
+                  { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
+                  { text: 'Cancelar', style: 'cancel' },
+                ]);
               }}
             >
               <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
             </Pressable>
           )}
         </View>
+
         <Text style={styles.message}>{item.mensaje}</Text>
-        {item.imagen_url ? (
-          <Image source={{ uri: item.imagen_url }} style={styles.postImage} />
-        ) : null}
+
+        {/* Galería del post */}
+        {imgs.length > 0 && (
+          <View style={{ marginBottom: t.spacing.s }}>
+            <Pressable onPress={() => openImagePreview(imgs, 0)}>
+              <Image source={{ uri: imgs[0] }} style={styles.postImage} />
+              {imgs.length > 1 && (
+                <View style={styles.multiBadge}>
+                  <Ionicons name="images-outline" size={16} color="#fff" />
+                  <Text style={styles.multiBadgeText}>{imgs.length}</Text>
+                </View>
+              )}
+            </Pressable>
+
+            {imgs.length > 1 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginTop: 6 }}
+                contentContainerStyle={{ gap: 8 }}
+              >
+                {imgs.slice(1).map((u, idx) => (
+                  <Pressable key={u} onPress={() => openImagePreview(imgs, idx + 1)}>
+                    <Image source={{ uri: u }} style={styles.thumb} />
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
         <Text style={styles.timestamp}>
           {new Date(item.created_at).toLocaleString()}
         </Text>
@@ -352,29 +459,38 @@ export default function HomeScreen({ userName }: Props) {
           value={mensaje}
           onChangeText={setMensaje}
         />
-        {imagen && (
-          <View style={{ alignItems: 'center', marginBottom: t.spacing.s }}>
-            <Image source={{ uri: imagen }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-          </View>
+
+        {/* Bandeja de imágenes seleccionadas (crear) */}
+        {imagenes.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: t.spacing.s }}
+            contentContainerStyle={{ gap: 10 }}
+          >
+            {imagenes.map((u) => (
+              <View key={u} style={styles.thumbWrap}>
+                <Image source={{ uri: u }} style={styles.thumb} />
+                <Pressable style={styles.removeBtn} onPress={() => removeImagenNueva(u)}>
+                  <Ionicons name="close" size={16} color="#fff" />
+                </Pressable>
+              </View>
+            ))}
+          </ScrollView>
         )}
+
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           <Pressable
-            onPress={seleccionarImagen}
-            style={({ pressed }) => [
-              styles.imageButton,
-              { opacity: pressed ? 0.6 : 1 },
-            ]}
+            onPress={seleccionarImagenes}
+            style={({ pressed }) => [styles.imageButton, { opacity: pressed ? 0.6 : 1 }]}
           >
             <Text style={[styles.imageButtonText, { color: t.colors.primary }]}>
-              {imagen ? 'Cambiar imagen' : 'Agregar imagen'}
+              {imagenes.length > 0 ? 'Agregar más' : 'Agregar imágenes'}
             </Text>
           </Pressable>
           <Pressable
             onPress={publicar}
-            style={({ pressed }) => [
-              styles.publishButton,
-              { opacity: pressed ? 0.8 : 1 },
-            ]}
+            style={({ pressed }) => [styles.publishButton, { opacity: pressed ? 0.8 : 1 }]}
           >
             {loadingPosts ? (
               <ActivityIndicator color="#fff" />
@@ -414,6 +530,7 @@ export default function HomeScreen({ userName }: Props) {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Editar publicación</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Mensaje"
@@ -422,29 +539,39 @@ export default function HomeScreen({ userName }: Props) {
               value={editMensaje}
               onChangeText={setEditMensaje}
             />
-            {editImagen && (
-              <View style={{ alignItems: 'center', marginBottom: t.spacing.s }}>
-                <Image source={{ uri: editImagen }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-              </View>
+
+            {/* Bandeja de imágenes en edición */}
+            {editImagenes.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={{ marginBottom: t.spacing.s }}
+                contentContainerStyle={{ gap: 10 }}
+              >
+                {editImagenes.map((u) => (
+                  <View key={u} style={styles.thumbWrap}>
+                    <Image source={{ uri: u }} style={styles.thumb} />
+                    <Pressable style={styles.removeBtn} onPress={() => removeImagenEdicion(u)}>
+                      <Ionicons name="close" size={16} color="#fff" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
             )}
+
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Pressable
-                onPress={seleccionarImagenEdicion}
-                style={({ pressed }) => [
-                  styles.imageButton,
-                  { opacity: pressed ? 0.6 : 1 },
-                ]}
+                onPress={seleccionarImagenesEdicion}
+                style={({ pressed }) => [styles.imageButton, { opacity: pressed ? 0.6 : 1 }]}
               >
                 <Text style={[styles.imageButtonText, { color: t.colors.primary }]}>
-                  {editImagen ? 'Cambiar imagen' : 'Agregar imagen'}
+                  {editImagenes.length > 0 ? 'Agregar más' : 'Agregar imágenes'}
                 </Text>
               </Pressable>
+
               <Pressable
                 onPress={actualizarPost}
-                style={({ pressed }) => [
-                  styles.publishButton,
-                  { opacity: pressed ? 0.8 : 1 },
-                ]}
+                style={({ pressed }) => [styles.publishButton, { opacity: pressed ? 0.8 : 1 }]}
                 disabled={loadingEdit}
               >
                 {loadingEdit ? (
@@ -454,10 +581,42 @@ export default function HomeScreen({ userName }: Props) {
                 )}
               </Pressable>
             </View>
+
             <Pressable onPress={() => setEditModalVisible(false)} style={styles.cancelButton}>
               <Text style={{ color: t.colors.primary, fontWeight: '600', textAlign: 'center' }}>Cancelar</Text>
             </Pressable>
           </View>
+        </View>
+      </Modal>
+
+      {/* MODAL PREVIEW FULLSCREEN */}
+      <Modal visible={previewVisible} transparent animationType="fade" onRequestClose={closeImagePreview}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)' }}>
+          <FlatList
+            horizontal
+            pagingEnabled
+            data={previewImages}
+            keyExtractor={(u, i) => `${u}-${i}`}
+            initialScrollIndex={previewIndex}
+            getItemLayout={(_, index) => ({
+              length: SCREEN_WIDTH,
+              offset: SCREEN_WIDTH * index,
+              index,
+            })}
+            initialNumToRender={3}
+            windowSize={3}
+            renderItem={({ item }) => (
+              <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, alignItems: 'center', justifyContent: 'center' }}>
+                <Image source={{ uri: item }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+              </View>
+            )}
+          />
+          <Pressable
+            onPress={closeImagePreview}
+            style={{ position: 'absolute', top: 40, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 }}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </Pressable>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -525,6 +684,7 @@ const makeStyles = (theme: any) =>
       height: 40,
       borderRadius: 20,
       marginRight: theme.spacing.s,
+      backgroundColor: theme.colors.placeholder,
     },
     avatarPlaceholder: {
       width: 40,
@@ -548,6 +708,40 @@ const makeStyles = (theme: any) =>
       height: 200,
       borderRadius: theme.borderRadius.m,
       marginBottom: theme.spacing.s,
+    },
+    multiBadge: {
+      position: 'absolute',
+      right: 8,
+      bottom: 8,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    multiBadgeText: { color: '#fff', fontWeight: '600' },
+    thumb: {
+      width: 70,
+      height: 70,
+      borderRadius: theme.borderRadius.s ?? 8,
+      backgroundColor: theme.colors.placeholder,
+    },
+    thumbWrap: {
+      width: 70,
+      height: 70,
+    },
+    removeBtn: {
+      position: 'absolute',
+      top: -6,
+      right: -6,
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      borderRadius: 11,
+      width: 22,
+      height: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     timestamp: {
       fontSize: theme.fontSize.small,

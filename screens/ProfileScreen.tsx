@@ -1,64 +1,37 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Alert, ScrollView, Image, TouchableOpacity, Switch } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AUTH_BASE_URL } from '../api';
-import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../lib/supabase';
-import { useNavigation } from '@react-navigation/native';
-import { Settings as SettingsIcon, LogOut } from 'lucide-react-native';
+import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  ScrollView,
+  Image,
+  TouchableOpacity,
+} from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Settings as SettingsIcon } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useProfile } from '../context/ProfileContext';
 
 export default function ProfileScreen() {
-  const { theme, themeType, toggleTheme } = useTheme();
-  const [nombre, setNombre] = useState('');
-  const [correo, setCorreo] = useState('');
-  const [telefono, setTelefono] = useState('');
-  const [numeroCasa, setNumeroCasa] = useState('');
-  const [foto, setFoto] = useState('');
-  const [fotoBase, setFotoBase] = useState('');
-  const [loading, setLoading] = useState(true);
+  const { theme } = useTheme();
   const navigation = useNavigation<any>();
+  const { loading, profile, avatarUrl, refreshProfile } = useProfile();
 
-  const cargarPerfil = async () => {
-    setLoading(true);
-    try {
-      const userId = await AsyncStorage.getItem('userId');
-      if (!userId) {
-        Alert.alert('Error', 'No se encontró el ID del usuario');
-        return;
-      }
-      const res = await fetch(`${AUTH_BASE_URL}/${userId}`);
-      const text = await res.text();
-      const data = JSON.parse(text);
-      if (!res.ok || !data.nombre) {
-        Alert.alert('Error', data?.error || 'Error al obtener el perfil');
-        return;
-      }
-      setNombre(data.nombre);
-      setCorreo(data.correo);
-      setTelefono(data.telefono);
-      setNumeroCasa(data.numero_casa);
-      setFoto(data.foto_url || '');
-      setFotoBase('');
-    } catch {
-      Alert.alert('Error de red', 'No se pudo conectar al servidor');
-    } finally {
-      setLoading(false);
-    }
-  };
+  useFocusEffect(
+    useCallback(() => {
+      // Cada vez que entras/retomas foco, refresca el perfil (agarra nueva foto firmada)
+      refreshProfile();
+    }, [refreshProfile])
+  );
 
-  useEffect(() => {
-    cargarPerfil();
-  }, []);
+  // Si hubo un error grave y no hay perfil, puedes mostrar alerta aquí si quieres
+  // pero asumimos que el provider maneja los logs y no rompe la UI.
 
-  const cerrarSesion = async () => {
-    await AsyncStorage.clear();
-    navigation.getParent()?.replace('Login');
-  };
-
-  if (loading) {
+  if (loading && !profile) {
     return (
       <ScrollView
         contentContainerStyle={[
@@ -66,26 +39,11 @@ export default function ProfileScreen() {
           { backgroundColor: theme.colors.background },
         ]}
       >
-        <ShimmerPlaceHolder
-          LinearGradient={LinearGradient}
-          style={styles.skeletonAvatar}
-        />
-        <ShimmerPlaceHolder
-          LinearGradient={LinearGradient}
-          style={styles.skeletonLine}
-        />
-        <ShimmerPlaceHolder
-          LinearGradient={LinearGradient}
-          style={styles.skeletonLine}
-        />
-        <ShimmerPlaceHolder
-          LinearGradient={LinearGradient}
-          style={styles.skeletonLine}
-        />
-        <ShimmerPlaceHolder
-          LinearGradient={LinearGradient}
-          style={styles.skeletonLine}
-        />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonAvatar} />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
       </ScrollView>
     );
   }
@@ -96,55 +54,49 @@ export default function ProfileScreen() {
         styles.container,
         { backgroundColor: theme.colors.background },
       ]}
+      keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.toggleContainer}>
-        <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-          Tema oscuro
-        </Text>
-        <Switch
-          value={themeType === 'dark'}
-          onValueChange={toggleTheme}
-          trackColor={{
-            false: theme.colors.placeholder,
-            true: theme.colors.primary,
-          }}
-          thumbColor={theme.colors.card}
-        />
-      </View>
-
       <View style={styles.header}>
-        <TouchableOpacity onPress={cerrarSesion}>
-         <LogOut color="red" size={24} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('OptionsScreen')}>
+        <TouchableOpacity
+          onPress={() => {
+            console.log('[ProfileScreen] Ir a OptionsScreen');
+            navigation.navigate('OptionsScreen');
+          }}
+        >
           <SettingsIcon color={theme.colors.primary} size={24} />
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.title, { color: theme.colors.primary }]}>
-        👤 Perfil
-      </Text>
+      <Text style={[styles.title, { color: theme.colors.primary }]}>👤 Perfil</Text>
 
-      <Image
-        source={
-          foto
-            ? { uri: foto }
-            : require('../assets/default-profile.png')
-        }
-        style={styles.avatar}
-      />
+      <TouchableOpacity
+        onPress={() => {
+          console.log('[ProfileScreen] Tap en avatar -> navegar a EditProfileScreen');
+          navigation.navigate('EditProfileScreen');
+        }}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={avatarUrl ? { uri: avatarUrl } : require('../assets/default-profile.png')}
+          style={styles.avatar}
+          key={avatarUrl || 'default'} // fuerza re-render si cambia la URL
+        />
+        <Text style={[styles.editHint, { color: theme.colors.primary }]}>
+          Toca la foto para editar
+        </Text>
+      </TouchableOpacity>
 
       <TextInput
         style={[styles.input, styles.disabledInput]}
         editable={false}
-        value={nombre}
+        value={profile?.nombre ?? ''}
         placeholder="Nombre"
         placeholderTextColor={theme.colors.placeholder}
       />
       <TextInput
         style={[styles.input, styles.disabledInput]}
         editable={false}
-        value={correo}
+        value={profile?.correo ?? ''}
         placeholder="Correo"
         keyboardType="email-address"
         placeholderTextColor={theme.colors.placeholder}
@@ -152,7 +104,7 @@ export default function ProfileScreen() {
       <TextInput
         style={[styles.input, styles.disabledInput]}
         editable={false}
-        value={telefono}
+        value={profile?.telefono ?? ''}
         placeholder="Teléfono"
         keyboardType="phone-pad"
         placeholderTextColor={theme.colors.placeholder}
@@ -160,7 +112,7 @@ export default function ProfileScreen() {
       <TextInput
         style={[styles.input, styles.disabledInput]}
         editable={false}
-        value={numeroCasa}
+        value={profile?.numero_casa ?? ''}
         placeholder="Número de casa"
         placeholderTextColor={theme.colors.placeholder}
       />
@@ -169,62 +121,13 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    padding: 24,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  toggleLabel: {
-    marginRight: 8,
-    fontSize: 14,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 8,
-    backgroundColor: '#eee',
-  },
-  input: {
-    backgroundColor: '#fff',
-    padding: 12,
-    marginBottom: 12,
-    borderRadius: 8,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    color: '#000',
-  },
-  disabledInput: {
-    backgroundColor: '#eee',
-    color: '#777',
-  },
-  skeletonAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  skeletonLine: {
-    height: 20,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
+  container: { flexGrow: 1, padding: 24 },
+  header: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
+  avatar: { width: 100, height: 100, borderRadius: 50, alignSelf: 'center', marginBottom: 6, backgroundColor: '#eee' },
+  editHint: { textAlign: 'center', marginBottom: 16, fontSize: 13 },
+  input: { backgroundColor: '#fff', padding: 12, marginBottom: 12, borderRadius: 8, borderColor: '#ccc', borderWidth: 1, color: '#000' },
+  disabledInput: { backgroundColor: '#eee', color: '#777' },
+  skeletonAvatar: { width: 100, height: 100, borderRadius: 50, alignSelf: 'center', marginBottom: 16 },
+  skeletonLine: { height: 20, borderRadius: 8, marginBottom: 12 },
 });

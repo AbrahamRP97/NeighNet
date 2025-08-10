@@ -1,14 +1,33 @@
+// screens/OptionsScreen.tsx
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Switch,
+  ScrollView,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Edit, Lock, Moon, Trash2, LogOut } from 'lucide-react-native';
+import {
+  Edit,
+  Lock,
+  Moon,
+  Trash2,
+  LogOut,
+  ArrowLeft,
+} from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useProfile } from '../context/ProfileContext'; // <-- NUEVO
 
 export default function OptionsScreen() {
   const navigation = useNavigation<any>();
   const { theme, themeType, toggleTheme } = useTheme();
+  const { clearProfile } = useProfile(); // <-- NUEVO
 
+  // Función robusta para cerrar sesión
   const handleLogout = async () => {
     Alert.alert('Cerrar sesión', '¿Seguro que deseas cerrar sesión?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -16,13 +35,21 @@ export default function OptionsScreen() {
         text: 'Cerrar sesión',
         style: 'destructive',
         onPress: async () => {
-          await AsyncStorage.clear();
-          navigation.getParent()?.replace('Login');
+          try {
+            await AsyncStorage.clear();
+          } finally {
+            clearProfile(); // <-- limpia contexto inmediatamente
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
         },
       },
     ]);
   };
 
+  // Doble confirmación antes de borrar la cuenta
   const handleDeleteAccount = () => {
     Alert.alert(
       'Eliminar cuenta',
@@ -33,7 +60,6 @@ export default function OptionsScreen() {
           text: 'Eliminar',
           style: 'destructive',
           onPress: () => {
-            // Segunda confirmación
             Alert.alert(
               'Confirmar eliminación',
               'Se eliminarán todos tus datos de manera permanente. ¿Deseas continuar?',
@@ -46,17 +72,25 @@ export default function OptionsScreen() {
                     try {
                       const userId = await AsyncStorage.getItem('userId');
                       if (!userId) throw new Error('ID de usuario no encontrado');
-                      // Llama al endpoint de eliminar cuenta
-                      const res = await fetch(`${process.env.EXPO_PUBLIC_AUTH_BASE_URL || 'https://neighnet-backend.onrender.com/api/auth'}/delete/${userId}`, {
+                      const base =
+                        process.env.EXPO_PUBLIC_AUTH_BASE_URL ||
+                        'https://neighnet-backend.onrender.com/api/auth';
+                      const res = await fetch(`${base}/delete/${userId}`, {
                         method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' }
+                        headers: { 'Content-Type': 'application/json' },
                       });
                       if (!res.ok) throw new Error('No se pudo eliminar la cuenta');
                       await AsyncStorage.clear();
-                      navigation.getParent()?.replace('Login');
                     } catch (err) {
                       Alert.alert('Error', 'No se pudo eliminar la cuenta');
+                      return;
                     }
+                    // Siempre limpiar el contexto y enviar al Login
+                    clearProfile();
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: 'Login' }],
+                    });
                   },
                 },
               ]
@@ -68,8 +102,20 @@ export default function OptionsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.primary }]}>Configuración</Text>
+    <ScrollView
+      contentContainerStyle={[
+        styles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <ArrowLeft color={theme.colors.primary} size={28} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: theme.colors.primary }]}>Configuración</Text>
+        <View style={{ width: 28 }} />
+      </View>
 
       <TouchableOpacity
         style={styles.option}
@@ -124,11 +170,15 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'stretch',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 28,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 28,
-    alignSelf: 'center',
   },
   option: {
     flexDirection: 'row',

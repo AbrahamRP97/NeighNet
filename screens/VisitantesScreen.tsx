@@ -1,3 +1,4 @@
+// screens/VisitantesScreen.tsx
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -16,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
-import LinearGradient from 'react-native-linear-gradient';
+import { LinearGradient } from 'expo-linear-gradient'; // ✅ usar Expo
 
 export default function VisitantesScreen() {
   const { theme } = useTheme();
@@ -99,7 +100,7 @@ export default function VisitantesScreen() {
         {[...Array(5)].map((_, i) => (
           <ShimmerPlaceHolder
             key={i}
-            LinearGradient={LinearGradient}
+            LinearGradient={LinearGradient} // ✅ pasar el gradiente de Expo
             style={styles.skeletonItem}
           />
         ))}
@@ -120,7 +121,7 @@ export default function VisitantesScreen() {
 
         <FlatList
           data={visitantes}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={item => item.id.toString?.() ?? String(item.id)}
           renderItem={({ item }) => (
             <View style={[styles.item, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>

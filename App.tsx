@@ -11,6 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
 
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ProfileProvider } from './context/ProfileContext'; // <-- NUEVO
 import LoginScreen from './screens/LoginScreen';
 import RegistroScreen from './screens/RegistroScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
@@ -75,7 +76,9 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
-        <AppContent />
+        <ProfileProvider>
+          <AppContent />
+        </ProfileProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
   );

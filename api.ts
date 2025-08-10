@@ -6,3 +6,5 @@ export const VIGILANCIA_BASE_URL =
   process.env.EXPO_PUBLIC_VIGILANCIA_BASE_URL || 'https://neighnet-backend.onrender.com/api/vigilancia';
 export const VISITANTES_BASE_URL =
   process.env.EXPO_PUBLIC_VISITANTES_BASE_URL || 'https://neighnet-backend.onrender.com/api/visitantes';
+export const UPLOADS_BASE_URL =
+  process.env.EXPO_PUBLIC_UPLOADS_BASE_URL || 'https://neighnet-backend.onrender.com/api/uploads';
