@@ -13,18 +13,18 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.aber97.neighnet",
       "buildNumber": "1",
       "infoPlist": {
         "LSApplicationQueriesSchemes": [
+          "neighnet",
           "neighnet"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
-
     "android": {
       "icon": "./assets/adaptive-icon.png",
       "adaptiveIcon": {
@@ -37,18 +37,21 @@
       "intentFilters": [
         {
           "action": "VIEW",
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "data": [
-            { "scheme": "neighnet" }
+            {
+              "scheme": "neighnet"
+            }
           ]
         }
       ]
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "extra": {
       "eas": {
         "projectId": "20a42cdc-f9c9-4e38-81d0-769b9e8ee3cb"
