@@ -1,5 +1,4 @@
-// screens/VisitantesScreen.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -13,11 +12,11 @@ import {
 import { VISITANTES_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Pencil, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
-import { LinearGradient } from 'expo-linear-gradient'; // ✅ usar Expo
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function VisitantesScreen() {
   const { theme } = useTheme();
@@ -25,7 +24,8 @@ export default function VisitantesScreen() {
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
 
-  const fetchVisitantes = async () => {
+  const fetchVisitantes = useCallback(async () => {
+    setLoading(true);
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
@@ -48,11 +48,14 @@ export default function VisitantesScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [setVisitantes, setLoading]);
 
-  useEffect(() => {
-    fetchVisitantes();
-  }, []);
+  // 🔁 Re-fetch SIEMPRE que la pantalla toma foco (al volver de Crear/Editar)
+  useFocusEffect(
+    useCallback(() => {
+      fetchVisitantes();
+    }, [fetchVisitantes])
+  );
 
   const handleSeleccionar = (visitante: any) => {
     if (!visitante) return Alert.alert('Error', 'Visitante no válido');
@@ -80,7 +83,7 @@ export default function VisitantesScreen() {
               });
               if (res.ok) {
                 Alert.alert('Eliminado', 'El visitante fue eliminado');
-                fetchVisitantes();
+                fetchVisitantes(); // 🔄 refresca tras eliminar
               } else {
                 const data = await res.json();
                 Alert.alert('Error', data?.error || 'No se pudo eliminar');
@@ -100,7 +103,7 @@ export default function VisitantesScreen() {
         {[...Array(5)].map((_, i) => (
           <ShimmerPlaceHolder
             key={i}
-            LinearGradient={LinearGradient} // ✅ pasar el gradiente de Expo
+            LinearGradient={LinearGradient}
             style={styles.skeletonItem}
           />
         ))}
@@ -121,7 +124,7 @@ export default function VisitantesScreen() {
 
         <FlatList
           data={visitantes}
-          keyExtractor={item => item.id.toString?.() ?? String(item.id)}
+          keyExtractor={item => item.id?.toString?.() ?? String(item.id)}
           renderItem={({ item }) => (
             <View style={[styles.item, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>

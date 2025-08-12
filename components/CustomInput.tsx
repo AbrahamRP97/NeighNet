@@ -32,7 +32,6 @@ export default function CustomInput({
   const [showPassword, setShowPassword] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
-  // Animación de sombra y borde
   const shadowAnim = useRef(new Animated.Value(0)).current;
 
   const handleFocus = () => {
@@ -107,6 +106,7 @@ export default function CustomInput({
         placeholderTextColor={theme.colors.placeholder}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        selectionColor={theme.colors.primary} // 🔹 Cursor visible en dark mode
         {...rest}
       />
       {isPassword && (
@@ -117,7 +117,7 @@ export default function CustomInput({
           <Feather
             name={showPassword ? 'eye' : 'eye-off'}
             size={21}
-            color={theme.colors.placeholder}
+            color={theme.colors.text} // 🔹 Antes era placeholder, ahora texto para contraste
           />
         </TouchableOpacity>
       )}
@@ -134,10 +134,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     paddingHorizontal: 14,
     paddingVertical: 0,
-    // sombra iOS
     shadowOffset: { width: 0, height: 2 },
     shadowColor: '#000',
-    backgroundColor: '#fff', // se sobrescribe con theme
   },
   input: {
     flex: 1,
@@ -150,7 +148,6 @@ const styles = StyleSheet.create({
   },
   eyeIcon: {
     paddingLeft: 10,
-    paddingRight: 0,
     justifyContent: 'center',
     alignItems: 'center',
     height: 48,
