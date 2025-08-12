@@ -11,7 +11,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
 
 import { ThemeProvider, useTheme } from './context/ThemeContext';
-import { ProfileProvider } from './context/ProfileContext'; // <-- NUEVO
+import { ProfileProvider } from './context/ProfileContext';
 import LoginScreen from './screens/LoginScreen';
 import RegistroScreen from './screens/RegistroScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
@@ -28,7 +28,21 @@ const Stack = createNativeStackNavigator();
 
 const linking = {
   prefixes: ['neighnet://'],
-  config: { screens: { ResetPassword: 'reset-password' } },
+  config: {
+    screens: {
+      ResetPassword: 'reset-password',
+      Login: 'login',
+      Registro: 'register',
+      ForgotPassword: 'forgot-password',
+      Main: 'main',
+      Visitantes: 'visitantes',
+      OptionsScreen: 'options',
+      EditProfileScreen: 'edit-profile',
+      ChangePasswordScreen: 'change-password',
+      CrearVisitante: 'crear-visitante',
+      QRGenerator: 'qr-generator',
+    },
+  },
   async getInitialURL() {
     try {
       const url = await Linking.getInitialURL();
@@ -36,6 +50,10 @@ const linking = {
     } catch {
       return null;
     }
+  },
+  subscribe(listener: (url: string) => void) {
+    const sub = Linking.addEventListener('url', ({ url }) => listener(url));
+    return () => sub.remove();
   },
 };
 
