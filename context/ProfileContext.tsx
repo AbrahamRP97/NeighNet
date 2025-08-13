@@ -19,7 +19,7 @@ type Ctx = {
   avatarUrl: string | null;                    // URL con ?v= para romper caché
   refreshProfile: () => Promise<void>;         // refetch del perfil
   notifyAvatarUpdated: () => Promise<void>;    // llamar tras cambiar foto
-  clearProfile: () => void;                     // limpiar perfil (logout)
+  clearProfile: () => void;                    // limpiar perfil (logout)
 };
 
 const ProfileContext = createContext<Ctx | null>(null);
@@ -37,14 +37,38 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const userId = await AsyncStorage.getItem('userId');
+      const [userId, token] = await Promise.all([
+        AsyncStorage.getItem('userId'),
+        AsyncStorage.getItem('token'),
+      ]);
       if (!userId) throw new Error('No userId in storage');
-      const res = await fetch(`${AUTH_BASE_URL}/${userId}`);
-      const txt = await res.text();
-      const data: Profile = JSON.parse(txt);
-      setProfile(data);
+
+      const res = await fetch(`${AUTH_BASE_URL}/${userId}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+
+      const text = await res.text();
+      let data: Profile | { error?: string } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error('Respuesta del servidor no es JSON');
+      }
+
+      if (!res.ok) {
+        const msg = (data as any)?.error || `Error al obtener el perfil (status ${res.status})`;
+        console.log('[ProfileProvider] fetchProfile error HTTP:', msg);
+        setProfile(null);
+        return;
+      }
+
+      setProfile(data as Profile);
     } catch (e) {
       console.log('[ProfileProvider] fetchProfile error:', e);
+      setProfile(null);
     } finally {
       setLoading(false);
     }
@@ -65,16 +89,14 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [fetchProfile]);
 
   const notifyAvatarUpdated = useCallback(async () => {
-    // 1) Refetch para agarrar nueva signed URL desde backend
-    await fetchProfile();
-    // 2) Bump local para invalidar caché inmediatamente en toda la app
-    setLocalAvatarVersion((x) => x + 1);
+    await fetchProfile();               // refirma url
+    setLocalAvatarVersion((x) => x + 1); // y rompe caché local
   }, [fetchProfile]);
 
   const clearProfile = () => {
     setProfile(null);
     setLocalAvatarVersion(0);
-  }
+  };
 
   const value: Ctx = {
     loading,

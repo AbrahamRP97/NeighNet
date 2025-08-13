@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft, ImagePlus, X } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
-import { useProfile } from '../context/ProfileContext'; // <-- NUEVO
+import { useProfile } from '../context/ProfileContext';
 
 type PickedAsset = {
   uri: string;
@@ -27,7 +27,7 @@ type PickedAsset = {
 
 export default function EditProfileScreen() {
   const { theme } = useTheme();
-  const { notifyAvatarUpdated } = useProfile(); // <-- NUEVO
+  const { notifyAvatarUpdated } = useProfile();
   const [nombre, setNombre] = useState('');
   const [correo, setCorreo] = useState('');
   const [telefono, setTelefono] = useState('');
@@ -45,39 +45,40 @@ export default function EditProfileScreen() {
 
   const cargarPerfil = async () => {
     setLoading(true);
-    console.log('[EditProfile] Cargar perfil...');
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      console.log('[EditProfile] userId:', userId);
+      const [userId, token] = await Promise.all([
+        AsyncStorage.getItem('userId'),
+        AsyncStorage.getItem('token'),
+      ]);
       if (!userId) {
         Alert.alert('Error', 'No se encontró el ID del usuario');
         navigation.goBack();
         return;
       }
       const url = `${AUTH_BASE_URL}/${userId}`;
-      console.log('[EditProfile] GET perfil URL:', url);
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       const status = res.status;
       const raw = await res.text();
-      console.log('[EditProfile] GET perfil status:', status);
 
       let data: any = null;
       try {
-        data = JSON.parse(raw);
-      } catch (e) {
-        console.log('[EditProfile] Error parseando JSON de perfil. raw:', raw?.slice(0, 400));
+        data = raw ? JSON.parse(raw) : null;
+      } catch {
         throw new Error('Respuesta del servidor no es JSON');
       }
 
       if (!res.ok || !data?.nombre) {
-        const msg = data?.error || 'Error al obtener el perfil';
-        console.log('[EditProfile] Error lógico:', msg);
+        const msg = data?.error || `Error al obtener el perfil (status ${status})`;
         Alert.alert('Error', msg);
         navigation.goBack();
         return;
       }
 
-      console.log('[EditProfile] Perfil OK. Tiene foto_url:', !!data.foto_url);
       setNombre(data.nombre);
       setCorreo(data.correo);
       setTelefono(data.telefono);
@@ -86,75 +87,56 @@ export default function EditProfileScreen() {
       setFotoBase('');
       setPicked(null);
     } catch (err: any) {
-      console.log('[EditProfile] Catch cargarPerfil:', err?.message || err);
       Alert.alert('Error de red', 'No se pudo conectar al servidor');
       navigation.goBack();
     } finally {
       setLoading(false);
-      console.log('[EditProfile] cargarPerfil finalizado.');
     }
   };
 
   const seleccionarImagen = async () => {
-    console.log('[EditProfile] Seleccionar imagen...');
     const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permiso.granted) {
       Alert.alert('Permiso denegado', 'Se requiere acceso a la galería');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images, // deprecado pero funcional; si molesta el warning, lo cambiamos luego
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.7,
       allowsEditing: true,
     });
 
-    console.log('[EditProfile] Resultado picker:', JSON.stringify(result));
     if (!result.canceled && result.assets.length > 0) {
       const asset = result.assets[0];
       setFotoBase(asset.uri);
       setPicked({
         uri: asset.uri,
-        mimeType: asset.mimeType || 'image/jpeg', // default amigable
+        mimeType: asset.mimeType || 'image/jpeg',
         fileName: asset.fileName || null,
       });
-      console.log('[EditProfile] Imagen elegida:', asset.uri, asset.mimeType, asset.fileName);
     }
   };
 
   async function fileUriToBlobWithFallback(fileUri: string, mime: string): Promise<Blob> {
-    // 1) Intento directo con fetch(file://...)
     try {
-      console.log('[EditProfile] Intentando blob con fetch(fileUri)...');
       const resp = await fetch(fileUri);
       const blob = await resp.blob();
-      // @ts-ignore
-      console.log('[EditProfile] OK fetch(fileUri). blob size:', blob?.size);
       return blob;
-    } catch (e: any) {
-      console.log('[EditProfile] fetch(fileUri) falló:', e?.message || e);
+    } catch {
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (!info.exists) throw new Error('Archivo no existe en: ' + fileUri);
+      const base64Data = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      const blob = await (await fetch(`data:${mime};base64,${base64Data}`)).blob();
+      return blob;
     }
-
-    // 2) Fallback: base64 -> data: -> blob()
-    console.log('[EditProfile] Fallback a base64 -> data: URI -> blob()');
-    const info = await FileSystem.getInfoAsync(fileUri);
-    if (!info.exists) throw new Error('Archivo no existe en: ' + fileUri);
-
-    const base64Data = await FileSystem.readAsStringAsync(fileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    console.log('[EditProfile] base64 length (fallback):', base64Data?.length);
-
-    const blob = await (await fetch(`data:${mime};base64,${base64Data}`)).blob();
-    // @ts-ignore
-    console.log('[EditProfile] OK fallback data:. blob size:', blob?.size);
-    return blob;
   }
 
   const uploadAvatarWithSignedUrl = async (
     userId: string,
     asset: PickedAsset
   ): Promise<string | null> => {
-    console.log('[EditProfile] uploadAvatarWithSignedUrl INICIO...');
     try {
       const uri = asset.uri;
       const mime = asset.mimeType || 'image/jpeg';
@@ -167,15 +149,11 @@ export default function EditProfileScreen() {
 
       const fileUri = uri.startsWith('file://') ? uri : 'file://' + uri;
       const info = await FileSystem.getInfoAsync(fileUri);
-      console.log('[EditProfile] File info:', info);
       if (!info.exists) {
-        const msg = `Archivo no existe en: ${fileUri}`;
-        console.log('[EditProfile] ' + msg);
-        Alert.alert('Error', msg);
+        Alert.alert('Error', `Archivo no existe en: ${fileUri}`);
         return null;
       }
 
-      console.log('[EditProfile] Solicitando Signed URL a backend:', `${UPLOADS_BASE_URL}/signed-url`);
       const signedRes = await fetch(`${UPLOADS_BASE_URL}/signed-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,68 +167,43 @@ export default function EditProfileScreen() {
       const signedText = await signedRes.text();
       let signedData: any = null;
       try {
-        signedData = JSON.parse(signedText);
-      } catch (e) {
-        console.log('[EditProfile] Respuesta NO-JSON de signed-url:', signedText?.slice(0, 400));
+        signedData = signedText ? JSON.parse(signedText) : null;
+      } catch {
         Alert.alert('Error', 'Respuesta inválida del servidor al firmar subida');
         return null;
       }
 
-      console.log('[EditProfile] signed-url status:', signedRes.status, 'data:', signedData);
       if (!signedRes.ok) {
         const msg = signedData?.error || `SignedURL error status ${signedRes.status}`;
-        console.log('[EditProfile] Error al pedir signed-url:', msg);
         Alert.alert('Error', msg);
         return null;
       }
 
       const { signedUrl, publicUrl } = signedData || {};
       if (!signedUrl) {
-        console.log('[EditProfile] signedUrl ausente en respuesta:', signedData);
         Alert.alert('Error', 'No se recibió URL firmada para subir');
         return null;
       }
-      console.log('[EditProfile] Signed URL OK. publicUrl:', publicUrl);
 
-      console.log('[EditProfile] Creando blob (con fallback) desde fileUri...');
-      let blob: Blob;
-      try {
-        blob = await fileUriToBlobWithFallback(fileUri, mime);
-      } catch (e: any) {
-        console.log('[EditProfile] Error creando blob con fallback:', e?.message || e);
-        Alert.alert('Error', 'No se pudo preparar la imagen para subir (blob)');
-        return null;
-      }
+      const blob = await fileUriToBlobWithFallback(fileUri, mime);
 
-      console.log('[EditProfile] Subiendo con PUT al signedUrl...');
-      let putRes: Response;
-      try {
-        putRes = await fetch(signedUrl, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': mime,
-            'x-upsert': 'true',
-          },
-          // @ts-ignore
-          body: blob,
-        });
-      } catch (e: any) {
-        console.log('[EditProfile] PUT lanzó excepción:', e?.message || e);
-        Alert.alert('Error', `PUT a Supabase falló: ${e?.message || 'desconocido'}`);
-        return null;
-      }
+      const putRes = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mime,
+          'x-upsert': 'true',
+        },
+        // @ts-ignore
+        body: blob,
+      });
 
-      const putBody = await putRes.text();
-      console.log('[EditProfile] PUT status:', putRes.status, 'body:', putBody?.slice(0, 400));
       if (!putRes.ok) {
         Alert.alert('Error', `No se pudo subir la imagen (status ${putRes.status})`);
         return null;
       }
 
-      console.log('[EditProfile] Subida OK. publicUrl:', publicUrl);
       return publicUrl || null;
     } catch (err: any) {
-      console.log('[EditProfile] Catch uploadAvatarWithSignedUrl:', err?.message || err);
       Alert.alert('Error', `Fallo al subir la imagen: ${err?.message || 'desconocido'}`);
       return null;
     }
@@ -262,26 +215,24 @@ export default function EditProfileScreen() {
       return;
     }
     setLoading(true);
-    console.log('[EditProfile] Guardar cambios...');
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      console.log('[EditProfile] userId para guardar:', userId);
+      const [userId, token] = await Promise.all([
+        AsyncStorage.getItem('userId'),
+        AsyncStorage.getItem('token'),
+      ]);
       if (!userId) {
         Alert.alert('Error', 'ID no disponible');
         setLoading(false);
         return;
       }
 
-      // Subir nueva imagen si se seleccionó
       let foto_url = foto;
       if (picked?.uri) {
         setUploading(true);
-        console.log('[EditProfile] Subiendo avatar con Signed URL...');
         const uploaded = await uploadAvatarWithSignedUrl(userId, picked);
         setUploading(false);
 
         if (!uploaded) {
-          console.log('[EditProfile] Upload avatar falló, abortando guardado.');
           setLoading(false);
           return;
         }
@@ -300,47 +251,42 @@ export default function EditProfileScreen() {
       };
 
       const url = `${AUTH_BASE_URL}/update/${userId}`;
-      console.log('[EditProfile] PUT perfil URL:', url, 'payload:', payload);
       const res = await fetch(url, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
+
       const text = await res.text();
       let data: any = null;
       try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.log('[EditProfile] Respuesta no-JSON en guardar:', text?.slice(0, 400));
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        // puede venir vacío
       }
 
-      console.log('[EditProfile] PUT perfil status:', res.status, 'data:', data);
       if (!res.ok) {
         const msg = data?.error || `No se pudo actualizar (status ${res.status})`;
-        console.log('[EditProfile] Error lógica al guardar:', msg);
         Alert.alert('Error', msg);
         setLoading(false);
         return;
       }
 
-      // 🔥 Notificar a toda la app que el avatar cambió (refirma URL y rompe caché global)
-      await notifyAvatarUpdated(); // <-- NUEVO
-
-      console.log('[EditProfile] Perfil actualizado OK.');
+      await notifyAvatarUpdated();
       Alert.alert('Éxito', 'Perfil actualizado', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    } catch (err: any) {
-      console.log('[EditProfile] Catch guardarCambios:', err?.message || err);
+    } catch {
       Alert.alert('Error de red', 'No se pudo conectar al servidor');
     } finally {
       setLoading(false);
-      console.log('[EditProfile] guardarCambios finalizado.');
     }
   };
 
   const limpiarImagenSeleccionada = () => {
-    console.log('[EditProfile] Limpiar imagen seleccionada (cancelar cambio de avatar)');
     setFotoBase('');
     setPicked(null);
   };

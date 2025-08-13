@@ -93,7 +93,7 @@ export default function VisitantesScreen() {
               });
               if (res.ok) {
                 Alert.alert('Eliminado', 'El visitante fue eliminado');
-                fetchVisitantes(); // 🔄 refresca tras eliminar
+                fetchVisitantes();
               } else {
                 const data = await res.json().catch(() => ({}));
                 Alert.alert('Error', data?.error || 'No se pudo eliminar');

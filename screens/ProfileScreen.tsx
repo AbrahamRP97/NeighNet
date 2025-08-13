@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,21 +15,33 @@ import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useProfile } from '../context/ProfileContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<any>();
   const { loading, profile, avatarUrl, refreshProfile } = useProfile();
 
+  const [sessionReady, setSessionReady] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const tk = await AsyncStorage.getItem('token');
+      if (!tk) {
+        Alert.alert('Sesión', 'Debes iniciar sesión nuevamente.');
+      }
+      setSessionReady(true);
+    })();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
-      // Cada vez que entras/retomas foco, refresca el perfil (agarra nueva foto firmada)
-      refreshProfile();
-    }, [refreshProfile])
+      // Refresca solo si tenemos sesión lista
+      if (sessionReady) {
+        refreshProfile();
+      }
+    }, [refreshProfile, sessionReady])
   );
-
-  // Si hubo un error grave y no hay perfil, puedes mostrar alerta aquí si quieres
-  // pero asumimos que el provider maneja los logs y no rompe la UI.
 
   if (loading && !profile) {
     return (
@@ -59,7 +71,6 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => {
-            console.log('[ProfileScreen] Ir a OptionsScreen');
             navigation.navigate('OptionsScreen');
           }}
         >
@@ -71,7 +82,6 @@ export default function ProfileScreen() {
 
       <TouchableOpacity
         onPress={() => {
-          console.log('[ProfileScreen] Tap en avatar -> navegar a EditProfileScreen');
           navigation.navigate('EditProfileScreen');
         }}
         activeOpacity={0.8}
@@ -79,7 +89,7 @@ export default function ProfileScreen() {
         <Image
           source={avatarUrl ? { uri: avatarUrl } : require('../assets/default-profile.png')}
           style={styles.avatar}
-          key={avatarUrl || 'default'} // fuerza re-render si cambia la URL
+          key={avatarUrl || 'default'}
         />
         <Text style={[styles.editHint, { color: theme.colors.primary }]}>
           Toca la foto para editar

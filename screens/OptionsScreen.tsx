@@ -19,14 +19,13 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useProfile } from '../context/ProfileContext'; // <-- NUEVO
+import { useProfile } from '../context/ProfileContext';
 
 export default function OptionsScreen() {
   const navigation = useNavigation<any>();
   const { theme, themeType, toggleTheme } = useTheme();
-  const { clearProfile } = useProfile(); // <-- NUEVO
+  const { clearProfile } = useProfile();
 
-  // Función robusta para cerrar sesión
   const handleLogout = async () => {
     Alert.alert('Cerrar sesión', '¿Seguro que deseas cerrar sesión?', [
       { text: 'Cancelar', style: 'cancel' },
@@ -37,7 +36,7 @@ export default function OptionsScreen() {
           try {
             await AsyncStorage.clear();
           } finally {
-            clearProfile(); // <-- limpia contexto inmediatamente
+            clearProfile();
             navigation.reset({
               index: 0,
               routes: [{ name: 'Login' }],
@@ -48,7 +47,6 @@ export default function OptionsScreen() {
     ]);
   };
 
-  // Doble confirmación antes de borrar la cuenta
   const handleDeleteAccount = () => {
     Alert.alert(
       'Eliminar cuenta',
@@ -70,13 +68,17 @@ export default function OptionsScreen() {
                   onPress: async () => {
                     try {
                       const userId = await AsyncStorage.getItem('userId');
-                      if (!userId) throw new Error('ID de usuario no encontrado');
+                      const tk = await AsyncStorage.getItem('token');
+                      if (!userId || !tk) throw new Error('Credenciales no encontradas');
                       const base =
                         process.env.EXPO_PUBLIC_AUTH_BASE_URL ||
                         'https://neighnet-backend.onrender.com/api/auth';
                       const res = await fetch(`${base}/delete/${userId}`, {
                         method: 'DELETE',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${tk}`, // <-- token
+                        },
                       });
                       if (!res.ok) throw new Error('No se pudo eliminar la cuenta');
                       await AsyncStorage.clear();
@@ -84,7 +86,6 @@ export default function OptionsScreen() {
                       Alert.alert('Error', 'No se pudo eliminar la cuenta');
                       return;
                     }
-                    // Siempre limpiar el contexto y enviar al Login
                     clearProfile();
                     navigation.reset({
                       index: 0,

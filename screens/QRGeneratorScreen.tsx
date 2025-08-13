@@ -17,7 +17,7 @@ import { captureRef } from 'react-native-view-shot';
 import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 
-const EXPIRATION_HOURS = 24; // <-- ajusta la vigencia del pase
+const EXPIRATION_HOURS = 24;
 
 type Visitante = {
   id: string;
@@ -51,15 +51,23 @@ export default function QRGeneratorScreen() {
       return;
     }
     (async () => {
-      const savedId = await AsyncStorage.getItem('userId');
+      const [savedId, token] = await Promise.all([
+        AsyncStorage.getItem('userId'),
+        AsyncStorage.getItem('token'),
+      ]);
       if (!savedId) {
         Alert.alert('Error', 'No se pudo obtener tu ID');
         return;
       }
       try {
-        const response = await fetch(`${AUTH_BASE_URL}/${savedId}`);
+        const response = await fetch(`${AUTH_BASE_URL}/${savedId}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
         const text = await response.text();
-        const data = JSON.parse(text);
+        const data = text ? JSON.parse(text) : null;
         if (!response.ok || !data?.nombre || !data?.numero_casa) {
           Alert.alert('Error', data?.error || 'Perfil incompleto o no encontrado');
           return;
@@ -72,7 +80,6 @@ export default function QRGeneratorScreen() {
     })();
   }, []);
 
-  // Generar el valor del QR con expiración y luego convertirlo a base64 (PNG)
   const handleGenerarQR = () => {
     if (!nombre || !numeroCasa || !visitante) {
       Alert.alert(
@@ -87,11 +94,11 @@ export default function QRGeneratorScreen() {
     const id_qr = `${now.getTime()}-${Math.floor(Math.random() * 1000)}`;
 
     const contenidoQR = JSON.stringify({
-      v: 1,                               // versión del formato
-      id_qr,                              // requerido por backend
-      visitante_id: visitante.id,         // requerido por backend (snake_case)
-      issued_at: now.toISOString(),       // cuándo se generó
-      expires_at: expires.toISOString(),  // cuándo expira
+      v: 1,
+      id_qr,
+      visitante_id: visitante.id,
+      issued_at: now.toISOString(),
+      expires_at: expires.toISOString(),
       meta: {
         nombreResidente: nombre,
         numeroCasa,
@@ -103,7 +110,6 @@ export default function QRGeneratorScreen() {
       `👤 ${nombre} le ha enviado una invitación de acceso. Vigente hasta ${expires.toLocaleString()}.`
     );
 
-    // Espera a que el QR se renderice y luego obtén la imagen base64
     setTimeout(() => {
       if (qrRef.current) {
         qrRef.current.toDataURL((data: string) => {
@@ -113,7 +119,6 @@ export default function QRGeneratorScreen() {
     }, 500);
   };
 
-  // Compartir el badge completo, renderizado invisible con el QR como imagen
   const handleCompartirBadge = async () => {
     if (!qrBase64) {
       Alert.alert('Primero genera el pase y espera que aparezca el QR');
@@ -158,7 +163,6 @@ export default function QRGeneratorScreen() {
 
       <CustomButton title="Generar pase" onPress={handleGenerarQR} />
 
-      {/* Badge visible, con el QR SVG */}
       {qrValue !== '' && (
         <Card style={styles.card}>
           <View
@@ -171,14 +175,13 @@ export default function QRGeneratorScreen() {
           >
             <Image source={require('../assets/image.png')} style={styles.logo} />
             <Text style={[styles.badgeTitle, { color: theme.colors.primary }]}>NEIGHNET</Text>
-            <QRCode value={qrValue} size={240} ecl = "M"  backgroundColor= "#fff" color='#000' getRef={(c) => (qrRef.current = c)} />
+            <QRCode value={qrValue} size={240} ecl="M" backgroundColor="#fff" color="#000" getRef={(c) => (qrRef.current = c)} />
             <Text style={[styles.badgeMessage, { color: theme.colors.text }]}>{mensajeQR}</Text>
           </View>
           <CustomButton title="Compartir pase" onPress={handleCompartirBadge} />
         </Card>
       )}
 
-      {/* Badge invisible para compartir */}
       {qrBase64 && (
         <View
           ref={invisibleBadgeRef}

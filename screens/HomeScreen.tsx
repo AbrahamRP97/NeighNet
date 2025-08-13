@@ -33,14 +33,14 @@ interface Props {
 interface Post {
   id: string;
   mensaje: string;
-  imagen_url: string | null;        
-  imagenes_url?: string[] | null;   
+  imagen_url: string | null;        // compat
+  imagenes_url?: string[] | null;   // multi-imagen opcional
   created_at: string;
   usuarios: { id: string; nombre: string; foto_url: string | null };
 }
 
 type FeedResponse =
-  | Post[] // legacy
+  | Post[]
   | {
       items: Post[];
       nextCursor: string | null;
@@ -56,18 +56,15 @@ const BANNED_WORDS = [
   'chingar', 'verga', 'culo', 'polla', 'zorra', 'maricón', 'maricon',
   'puta madre', 'hijo de puta', 'hijos de puta', 'la concha de tu madre',
   'me cago en', 'me cago en la', 'me cago en el', 'me cago en tus', 'me cago en tu',
-  'chupapollas', 'cagada', 'cagar', 'cagarse','ijueputa','malparida',
+  'chupapollas', 'cagada', 'cagar', 'cagarse',
   'come mierda', 'comemierda', 'chupamela', 'chúpamela', 'chupamelo', 'chúpamelo',
   'jodete', 'jódete', 'jodidos', 'jodidas', 'jodida', 'jodido', 'joderte', 'joderles',
   'porlagranputa', 'por la gran puta', 'hijueputa', 'hijo de la gran puta', 'hijos de la gran puta',
-  'hijueputa', 'hijos de puta', 'la gran puta', 'malparido'
+  'hijos de puta', 'la gran puta', 'malparido', 'malparida', 'ijueputa'
 ];
 
 const normalizeForCheck = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase();
+  text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 const hasBannedWords = (text: string) => {
   const plain = normalizeForCheck(text).replace(/[^a-záéíóúüñ0-9\s]/gi, ' ');
@@ -78,6 +75,16 @@ const hasBannedWords = (text: string) => {
 };
 
 const PAGE_SIZE = 10;
+
+// helpers de validación de respuesta
+const isPost = (x: any): x is Post =>
+  x && typeof x === 'object' && typeof x.id === 'string' && typeof x.mensaje === 'string';
+
+const isFeedArray = (x: any): x is Post[] =>
+  Array.isArray(x) && x.every(isPost);
+
+const isFeedObject = (x: any): x is { items: Post[]; nextCursor: string | null } =>
+  x && typeof x === 'object' && Array.isArray(x.items);
 
 export default function HomeScreen({ userName }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -103,130 +110,121 @@ export default function HomeScreen({ userName }: Props) {
   const [previewIndex, setPreviewIndex] = useState(0);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [sessionReady, setSessionReady] = useState(false);
 
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
   const { avatarUrl } = useProfile();
   const styles = makeStyles(t);
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-  const [sessionReady, setSessionReady] = useState(false);
 
+  // -------- Inicialización --------
   useEffect(() => {
-  (async () => {
-    const uid = await AsyncStorage.getItem('userId');
-    const tk = await AsyncStorage.getItem('token');
-    setUserId(uid);
-    setToken(tk);
-    setSessionReady(true);
-  })();
-}, []);
-
+    (async () => {
+      const uid = await AsyncStorage.getItem('userId');
+      const tk = await AsyncStorage.getItem('token');
+      setUserId(uid);
+      setToken(tk);
+      setSessionReady(true);
+    })();
+  }, []);
 
   useFocusEffect(
-  useCallback(() => {
-    if (sessionReady && token) {
-      cargarPrimeraPagina();
-    }
-  }, [sessionReady, token])
-);
-
+    useCallback(() => {
+      if (sessionReady && token) {
+        cargarPrimeraPagina();
+      }
+    }, [sessionReady, token])
+  );
 
   useEffect(() => {
-  navigation.setOptions?.({
-    headerRight: () => (
-      <Pressable
-        onPress={() => sessionReady && token && cargarPrimeraPagina()}
-        style={{ marginRight: 15 }}
-      >
-        <Ionicons name="refresh" size={24} color={t.colors.primary} />
-      </Pressable>
-    ),
-  });
-}, [navigation, t, sessionReady, token]);
+    navigation.setOptions?.({
+      headerRight: () => (
+        <Pressable onPress={() => sessionReady && token && cargarPrimeraPagina()} style={{ marginRight: 15 }}>
+          <Ionicons name="refresh" size={24} color={t.colors.primary} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, t, sessionReady, token]);
 
-  const parseFeed = (resp: FeedResponse) => {
-    if (Array.isArray(resp)) {
-      return { items: resp, nextCursor: null };
+  // -------- Feed: helpers --------
+  const parseFeed = (resp: any): { items: Post[]; nextCursor: string | null } | null => {
+    if (isFeedArray(resp)) return { items: resp, nextCursor: null };
+    if (isFeedObject(resp) && isFeedArray(resp.items)) {
+      return { items: resp.items, nextCursor: resp.nextCursor ?? null };
     }
-    return resp;
+    return null;
   };
 
   const cargarPrimeraPagina = async () => {
-  if (!token) return;
-  setLoadingPosts(true);
-  reachedEndRef.current = false;
-  try {
-    const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    if (!token) return;
+    setLoadingPosts(true);
+    reachedEndRef.current = false;
+    try {
+      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = err?.error || 'No se pudieron cargar las publicaciones';
-      throw new Error(msg);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const msg = err?.error || 'No se pudieron cargar las publicaciones';
+        throw new Error(msg);
+      }
+
+      const data = await res.json();
+      const parsed = parseFeed(data);
+      if (!parsed) throw new Error('Respuesta del servidor inválida');
+
+      setPosts(parsed.items);
+      setNextCursor(parsed.nextCursor);
+      setExpanded({});
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'No se pudieron cargar las publicaciones');
+      setPosts([]);
+      setNextCursor(null);
+    } finally {
+      setLoadingPosts(false);
+      setRefreshing(false);
     }
-
-    const data = await res.json();
-    const parsed = Array.isArray(data)
-      ? { items: data, nextCursor: null }
-      : (data && Array.isArray(data.items) ? { items: data.items, nextCursor: data.nextCursor ?? null } : null);
-
-    if (!parsed) throw new Error('Respuesta del servidor inválida');
-
-    setPosts(parsed.items);
-    setNextCursor(parsed.nextCursor);
-    setExpanded({});
-  } catch (e: any) {
-    Alert.alert('Error', e?.message || 'No se pudieron cargar las publicaciones');
-    setPosts([]);
-    setNextCursor(null);
-  } finally {
-    setLoadingPosts(false);
-    setRefreshing(false);
-  }
-};
-
+  };
 
   const cargarMas = async () => {
-  if (loadingMore || loadingPosts || !nextCursor || reachedEndRef.current || !token) return;
-  setLoadingMore(true);
-  try {
-    const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` }, // <-- token
-    });
+    if (loadingMore || loadingPosts || !nextCursor || reachedEndRef.current || !token) return;
+    setLoadingMore(true);
+    try {
+      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    if (!res.ok) {
-      reachedEndRef.current = true;
-      return;
+      if (!res.ok) {
+        reachedEndRef.current = true;
+        return;
+      }
+
+      const data = await res.json();
+      const parsed = parseFeed(data);
+      if (!parsed || !parsed.items.length) {
+        reachedEndRef.current = true;
+      } else {
+        setPosts(prev => [...prev, ...parsed.items]);
+        setNextCursor(parsed.nextCursor);
+        if (!parsed.nextCursor) reachedEndRef.current = true;
+      }
+    } catch {
+      // Silencioso
+    } finally {
+      setLoadingMore(false);
     }
-
-    const data = await res.json();
-    const parsed = Array.isArray(data)
-      ? { items: data, nextCursor: null }
-      : (data && Array.isArray(data.items) ? { items: data.items, nextCursor: data.nextCursor ?? null } : null);
-
-    if (!parsed || !parsed.items.length) {
-      reachedEndRef.current = true;
-    } else {
-      setPosts(prev => [...prev, ...parsed.items]);
-      setNextCursor(parsed.nextCursor);
-      if (!parsed.nextCursor) reachedEndRef.current = true;
-    }
-  } catch {
-    // silencioso
-  } finally {
-    setLoadingMore(false);
-  }
-};
-
+  };
 
   const onRefresh = useCallback(() => {
-  setRefreshing(true);
-  if (token) cargarPrimeraPagina();
+    setRefreshing(true);
+    if (token) cargarPrimeraPagina();
   }, [token]);
 
+  // -------- Selección de imágenes (crear) --------
   const seleccionarImagenes = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -252,42 +250,71 @@ export default function HomeScreen({ userName }: Props) {
     setImagenes(prev => prev.filter(u => u !== uri));
   };
 
+  // -------- Subidas --------
+  const fileUriToBlobWithFallback = async (fileUri: string, mime: string): Promise<Blob> => {
+    try {
+      const resp = await fetch(fileUri);
+      return await resp.blob();
+    } catch {
+      const info = await FileSystem.getInfoAsync(fileUri);
+      if (!info.exists) throw new Error('Archivo no existe: ' + fileUri);
+      const base64Data = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+      return await (await fetch(`data:${mime};base64,${base64Data}`)).blob();
+    }
+  };
+
   const subirImagen = async (uri: string): Promise<string | null> => {
     try {
       const match = /\.(\w+)$/.exec(uri);
-      const fileExt = match ? match[1].toLowerCase() : 'jpg';
+      const fileExt = (match ? match[1] : 'jpg').toLowerCase();
       const contentType =
-        fileExt === 'png'
-          ? 'image/png'
-          : fileExt === 'jpeg' || fileExt === 'jpg'
-          ? 'image/jpeg'
-          : 'application/octet-stream';
+        fileExt === 'png'  ? 'image/png'  :
+        fileExt === 'jpg'  ? 'image/jpeg' :
+        fileExt === 'jpeg' ? 'image/jpeg' :
+        fileExt === 'heic' ? 'image/heic' :
+        fileExt === 'heif' ? 'image/heif' :
+        'application/octet-stream';
+
       const fileName = `${userId}-${Date.now()}-${Math.floor(Math.random() * 1e6)}.${fileExt}`;
       const fileUri = uri.startsWith('file://') ? uri : 'file://' + uri;
 
       const fileInfo = await FileSystem.getInfoAsync(fileUri);
       if (!fileInfo.exists) return null;
 
-      const resp = await fetch(fileUri);
-      const blob = await resp.blob();
-
+      // 1) pedir signed-url (con token)
       const signedRes = await fetch(`${UPLOADS_BASE_URL}/signed-url`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ fileName, contentType, bucket: 'posts' }),
       });
-      if (!signedRes.ok) return null;
+      if (!signedRes.ok) {
+        const errTxt = await signedRes.text().catch(()=> '');
+        console.log('signedRes error:', signedRes.status, errTxt);
+        return null;
+      }
       const { signedUrl, publicUrl } = await signedRes.json();
 
+      // 2) crear blob robusto
+      const blob = await fileUriToBlobWithFallback(fileUri, contentType);
+
+      // 3) subir al signedUrl
       const putResp = await fetch(signedUrl, {
         method: 'PUT',
         headers: { 'content-type': contentType, 'x-upsert': 'true' },
         body: blob,
       });
-      if (!putResp.ok) return null;
+      if (!putResp.ok) {
+        const txt = await putResp.text().catch(()=> '');
+        console.log('putResp error:', putResp.status, txt);
+        return null;
+      }
 
       return publicUrl || null;
-    } catch {
+    } catch (e) {
+      console.log('subirImagen catch:', (e as any)?.message || e);
       return null;
     }
   };
@@ -302,6 +329,7 @@ export default function HomeScreen({ userName }: Props) {
     return results;
   };
 
+  // -------- Validaciones de texto --------
   const validateMessage = (text: string) => {
     if (!text.trim()) {
       Alert.alert('Escribe un mensaje para publicar');
@@ -313,16 +341,13 @@ export default function HomeScreen({ userName }: Props) {
     }
     const { found, words } = hasBannedWords(text);
     if (found) {
-      Alert.alert(
-        'Contenido no permitido',
-        `Tu mensaje contiene palabras no permitidas: ${words.join(', ')}.`
-      );
+      Alert.alert('Contenido no permitido', `Tu mensaje contiene palabras no permitidas: ${words.join(', ')}.`);
       return false;
     }
     return true;
   };
 
-
+  // -------- Publicar --------
   const publicar = async () => {
     if (!userId || !token) {
       Alert.alert('Error de sesión');
@@ -358,7 +383,6 @@ export default function HomeScreen({ userName }: Props) {
       });
 
       if (!res.ok) {
-        // Si el backend devuelve 400 por filtro o límite, mostramos su mensaje
         const maybeJson = await res.json().catch(() => null);
         const backendMsg = maybeJson?.error || 'Error al publicar';
         Alert.alert('Ups', backendMsg);
@@ -376,7 +400,7 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
-
+  // -------- Eliminar --------
   const eliminarPost = async (postId: string) => {
     if (!token) {
       Alert.alert('Error de sesión');
@@ -409,14 +433,14 @@ export default function HomeScreen({ userName }: Props) {
     );
   };
 
-
+  // -------- Helpers --------
   const getImagenesFromPost = (p: Post): string[] => {
     if (Array.isArray(p.imagenes_url) && p.imagenes_url.length) return p.imagenes_url;
     if (p.imagen_url) return [p.imagen_url];
     return [];
   };
 
-
+  // -------- Edición --------
   const openEditModal = (post: Post) => {
     setEditMensaje(post.mensaje);
     setEditImagenes(getImagenesFromPost(post));
@@ -477,8 +501,8 @@ export default function HomeScreen({ userName }: Props) {
         },
         body: JSON.stringify({
           mensaje: editMensaje,
-          imagen_url: finalUrls[0] || null, // compat
-          imagenes_url: finalUrls,          // multi
+          imagen_url: finalUrls[0] || null,
+          imagenes_url: finalUrls,
         }),
       });
 
@@ -502,6 +526,7 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
+  // -------- Preview fullscreen --------
   const openImagePreview = (images: string[], startIndex: number) => {
     setPreviewImages(images);
     setPreviewIndex(startIndex);
@@ -839,7 +864,7 @@ const makeStyles = (theme: any) =>
       borderRadius: theme.borderRadius.m,
       textAlignVertical: 'top',
       fontSize: theme.fontSize.body,
-      marginBottom: 6, // ajustado para dejar espacio al contador
+      marginBottom: 6,
       color: theme.colors.text,
     },
     imageButton: {
