@@ -56,12 +56,11 @@ const BANNED_WORDS = [
   'chingar', 'verga', 'culo', 'polla', 'zorra', 'maricón', 'maricon',
   'puta madre', 'hijo de puta', 'hijos de puta', 'la concha de tu madre',
   'me cago en', 'me cago en la', 'me cago en el', 'me cago en tus', 'me cago en tu',
-  'chupapollas', 'chupapollas', 'cagada', 'cagar', 'cagarse',
+  'chupapollas', 'cagada', 'cagar', 'cagarse','ijueputa','malparida',
   'come mierda', 'comemierda', 'chupamela', 'chúpamela', 'chupamelo', 'chúpamelo',
   'jodete', 'jódete', 'jodidos', 'jodidas', 'jodida', 'jodido', 'joderte', 'joderles',
   'porlagranputa', 'por la gran puta', 'hijueputa', 'hijo de la gran puta', 'hijos de la gran puta',
-  'hijueputa', 'hijos de puta', 'la gran puta', 'malparido', 'malparida',
-  'ijueputa'
+  'hijueputa', 'hijos de puta', 'la gran puta', 'malparido'
 ];
 
 const normalizeForCheck = (text: string) =>
@@ -110,30 +109,40 @@ export default function HomeScreen({ userName }: Props) {
   const { avatarUrl } = useProfile();
   const styles = makeStyles(t);
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+  const [sessionReady, setSessionReady] = useState(false);
 
   useEffect(() => {
-    (async () => {
-      setUserId(await AsyncStorage.getItem('userId'));
-      setToken(await AsyncStorage.getItem('token'));
-      await cargarPrimeraPagina();
-    })();
-  }, []);
+  (async () => {
+    const uid = await AsyncStorage.getItem('userId');
+    const tk = await AsyncStorage.getItem('token');
+    setUserId(uid);
+    setToken(tk);
+    setSessionReady(true);
+  })();
+}, []);
+
 
   useFocusEffect(
-    useCallback(() => {
+  useCallback(() => {
+    if (sessionReady && token) {
       cargarPrimeraPagina();
-    }, [])
-  );
+    }
+  }, [sessionReady, token])
+);
+
 
   useEffect(() => {
-    navigation.setOptions?.({
-      headerRight: () => (
-        <Pressable onPress={cargarPrimeraPagina} style={{ marginRight: 15 }}>
-          <Ionicons name="refresh" size={24} color={t.colors.primary} />
-        </Pressable>
-      ),
-    });
-  }, [navigation, t]);
+  navigation.setOptions?.({
+    headerRight: () => (
+      <Pressable
+        onPress={() => sessionReady && token && cargarPrimeraPagina()}
+        style={{ marginRight: 15 }}
+      >
+        <Ionicons name="refresh" size={24} color={t.colors.primary} />
+      </Pressable>
+    ),
+  });
+}, [navigation, t, sessionReady, token]);
 
   const parseFeed = (resp: FeedResponse) => {
     if (Array.isArray(resp)) {
@@ -143,51 +152,80 @@ export default function HomeScreen({ userName }: Props) {
   };
 
   const cargarPrimeraPagina = async () => {
-    setLoadingPosts(true);
-    reachedEndRef.current = false;
-    try {
-      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}`;
-      const res = await fetch(url);
-      const data: FeedResponse = await res.json();
-      const { items, nextCursor } = parseFeed(data);
-      setPosts(items);
-      setNextCursor(nextCursor);
-      setExpanded({}); // reset expansiones
-    } catch {
-      Alert.alert('Error', 'No se pudieron cargar las publicaciones');
-    } finally {
-      setLoadingPosts(false);
-      setRefreshing(false);
+  if (!token) return;
+  setLoadingPosts(true);
+  reachedEndRef.current = false;
+  try {
+    const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const msg = err?.error || 'No se pudieron cargar las publicaciones';
+      throw new Error(msg);
     }
-  };
+
+    const data = await res.json();
+    const parsed = Array.isArray(data)
+      ? { items: data, nextCursor: null }
+      : (data && Array.isArray(data.items) ? { items: data.items, nextCursor: data.nextCursor ?? null } : null);
+
+    if (!parsed) throw new Error('Respuesta del servidor inválida');
+
+    setPosts(parsed.items);
+    setNextCursor(parsed.nextCursor);
+    setExpanded({});
+  } catch (e: any) {
+    Alert.alert('Error', e?.message || 'No se pudieron cargar las publicaciones');
+    setPosts([]);
+    setNextCursor(null);
+  } finally {
+    setLoadingPosts(false);
+    setRefreshing(false);
+  }
+};
+
 
   const cargarMas = async () => {
-    if (loadingMore || loadingPosts || !nextCursor || reachedEndRef.current) return;
-    setLoadingMore(true);
-    try {
-      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`;
-      const res = await fetch(url);
-      const data: FeedResponse = await res.json();
-      const { items, nextCursor: next } = parseFeed(data);
+  if (loadingMore || loadingPosts || !nextCursor || reachedEndRef.current || !token) return;
+  setLoadingMore(true);
+  try {
+    const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }, // <-- token
+    });
 
-      if (!items.length) {
-        reachedEndRef.current = true;
-      } else {
-        setPosts(prev => [...prev, ...items]);
-        setNextCursor(next);
-        if (!next) reachedEndRef.current = true;
-      }
-    } catch {
-      // Silencioso
-    } finally {
-      setLoadingMore(false);
+    if (!res.ok) {
+      reachedEndRef.current = true;
+      return;
     }
-  };
+
+    const data = await res.json();
+    const parsed = Array.isArray(data)
+      ? { items: data, nextCursor: null }
+      : (data && Array.isArray(data.items) ? { items: data.items, nextCursor: data.nextCursor ?? null } : null);
+
+    if (!parsed || !parsed.items.length) {
+      reachedEndRef.current = true;
+    } else {
+      setPosts(prev => [...prev, ...parsed.items]);
+      setNextCursor(parsed.nextCursor);
+      if (!parsed.nextCursor) reachedEndRef.current = true;
+    }
+  } catch {
+    // silencioso
+  } finally {
+    setLoadingMore(false);
+  }
+};
+
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    cargarPrimeraPagina();
-  }, []);
+  setRefreshing(true);
+  if (token) cargarPrimeraPagina();
+  }, [token]);
 
   const seleccionarImagenes = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
