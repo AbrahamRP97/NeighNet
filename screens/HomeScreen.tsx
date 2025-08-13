@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,11 +33,52 @@ interface Props {
 interface Post {
   id: string;
   mensaje: string;
-  imagen_url: string | null;        // compat
-  imagenes_url?: string[] | null;   // multi-imagen opcional
+  imagen_url: string | null;        
+  imagenes_url?: string[] | null;   
   created_at: string;
   usuarios: { id: string; nombre: string; foto_url: string | null };
 }
+
+type FeedResponse =
+  | Post[] // legacy
+  | {
+      items: Post[];
+      nextCursor: string | null;
+    };
+
+const MAX_CHARS = 480;
+const DISPLAY_TRUNCATE = 250;
+
+const BANNED_WORDS = [
+  'mierda', 'pendejo', 'pendeja', 'estupido', 'estúpido', 'idiota',
+  'imbecil', 'imbécil', 'maldito', 'maldita', 'cabrón', 'cabron',
+  'puta', 'puto', 'joder', 'carajo', 'coño', 'gilipollas', 'chinga',
+  'chingar', 'verga', 'culo', 'polla', 'zorra', 'maricón', 'maricon',
+  'puta madre', 'hijo de puta', 'hijos de puta', 'la concha de tu madre',
+  'me cago en', 'me cago en la', 'me cago en el', 'me cago en tus', 'me cago en tu',
+  'chupapollas', 'chupapollas', 'cagada', 'cagar', 'cagarse',
+  'come mierda', 'comemierda', 'chupamela', 'chúpamela', 'chupamelo', 'chúpamelo',
+  'jodete', 'jódete', 'jodidos', 'jodidas', 'jodida', 'jodido', 'joderte', 'joderles',
+  'porlagranputa', 'por la gran puta', 'hijueputa', 'hijo de la gran puta', 'hijos de la gran puta',
+  'hijueputa', 'hijos de puta', 'la gran puta', 'malparido', 'malparida',
+  'ijueputa'
+];
+
+const normalizeForCheck = (text: string) =>
+  text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+
+const hasBannedWords = (text: string) => {
+  const plain = normalizeForCheck(text).replace(/[^a-záéíóúüñ0-9\s]/gi, ' ');
+  const tokens = plain.split(/\s+/).filter(Boolean);
+  const bannedSet = new Set(BANNED_WORDS.map(normalizeForCheck));
+  const found = Array.from(new Set(tokens.filter(t => bannedSet.has(t))));
+  return { found: found.length > 0, words: found };
+};
+
+const PAGE_SIZE = 10;
 
 export default function HomeScreen({ userName }: Props) {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -48,17 +89,21 @@ export default function HomeScreen({ userName }: Props) {
   const [userId, setUserId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
-  // Edición
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const reachedEndRef = useRef(false);
+
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editMensaje, setEditMensaje] = useState('');
   const [editImagenes, setEditImagenes] = useState<string[]>([]);
   const [editPostId, setEditPostId] = useState<string | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
 
-  // Preview fullscreen
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewImages, setPreviewImages] = useState<string[]>([]);
   const [previewIndex, setPreviewIndex] = useState(0);
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
@@ -70,32 +115,44 @@ export default function HomeScreen({ userName }: Props) {
     (async () => {
       setUserId(await AsyncStorage.getItem('userId'));
       setToken(await AsyncStorage.getItem('token'));
-      obtenerPosts();
+      await cargarPrimeraPagina();
     })();
   }, []);
 
   useFocusEffect(
     useCallback(() => {
-      obtenerPosts();
+      cargarPrimeraPagina();
     }, [])
   );
 
   useEffect(() => {
     navigation.setOptions?.({
       headerRight: () => (
-        <Pressable onPress={obtenerPosts} style={{ marginRight: 15 }}>
+        <Pressable onPress={cargarPrimeraPagina} style={{ marginRight: 15 }}>
           <Ionicons name="refresh" size={24} color={t.colors.primary} />
         </Pressable>
       ),
     });
   }, [navigation, t]);
 
-  const obtenerPosts = async () => {
+  const parseFeed = (resp: FeedResponse) => {
+    if (Array.isArray(resp)) {
+      return { items: resp, nextCursor: null };
+    }
+    return resp;
+  };
+
+  const cargarPrimeraPagina = async () => {
     setLoadingPosts(true);
+    reachedEndRef.current = false;
     try {
-      const res = await fetch(`${POSTS_BASE_URL}`);
-      const data = await res.json();
-      setPosts(data);
+      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}`;
+      const res = await fetch(url);
+      const data: FeedResponse = await res.json();
+      const { items, nextCursor } = parseFeed(data);
+      setPosts(items);
+      setNextCursor(nextCursor);
+      setExpanded({}); // reset expansiones
     } catch {
       Alert.alert('Error', 'No se pudieron cargar las publicaciones');
     } finally {
@@ -104,12 +161,34 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
+  const cargarMas = async () => {
+    if (loadingMore || loadingPosts || !nextCursor || reachedEndRef.current) return;
+    setLoadingMore(true);
+    try {
+      const url = `${POSTS_BASE_URL}?limit=${PAGE_SIZE}&cursor=${encodeURIComponent(nextCursor)}`;
+      const res = await fetch(url);
+      const data: FeedResponse = await res.json();
+      const { items, nextCursor: next } = parseFeed(data);
+
+      if (!items.length) {
+        reachedEndRef.current = true;
+      } else {
+        setPosts(prev => [...prev, ...items]);
+        setNextCursor(next);
+        if (!next) reachedEndRef.current = true;
+      }
+    } catch {
+      // Silencioso
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    obtenerPosts();
+    cargarPrimeraPagina();
   }, []);
 
-  // -------- Selección de imágenes (crear) --------
   const seleccionarImagenes = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
@@ -135,7 +214,6 @@ export default function HomeScreen({ userName }: Props) {
     setImagenes(prev => prev.filter(u => u !== uri));
   };
 
-  // -------- Subidas --------
   const subirImagen = async (uri: string): Promise<string | null> => {
     try {
       const match = /\.(\w+)$/.exec(uri);
@@ -186,16 +264,33 @@ export default function HomeScreen({ userName }: Props) {
     return results;
   };
 
-  // -------- Publicar --------
-  const publicar = async () => {
-    if (!mensaje.trim()) {
+  const validateMessage = (text: string) => {
+    if (!text.trim()) {
       Alert.alert('Escribe un mensaje para publicar');
-      return;
+      return false;
     }
+    if (text.length > MAX_CHARS) {
+      Alert.alert('Límite de caracteres', `El mensaje no puede superar ${MAX_CHARS} caracteres.`);
+      return false;
+    }
+    const { found, words } = hasBannedWords(text);
+    if (found) {
+      Alert.alert(
+        'Contenido no permitido',
+        `Tu mensaje contiene palabras no permitidas: ${words.join(', ')}.`
+      );
+      return false;
+    }
+    return true;
+  };
+
+
+  const publicar = async () => {
     if (!userId || !token) {
       Alert.alert('Error de sesión');
       return;
     }
+    if (!validateMessage(mensaje)) return;
 
     try {
       setLoadingPosts(true);
@@ -211,7 +306,7 @@ export default function HomeScreen({ userName }: Props) {
         imageUrls = uploaded;
       }
 
-      await fetch(`${POSTS_BASE_URL}/create`, {
+      const res = await fetch(`${POSTS_BASE_URL}/create`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -219,14 +314,23 @@ export default function HomeScreen({ userName }: Props) {
         },
         body: JSON.stringify({
           mensaje,
-          imagen_url: imageUrls[0] || null, // compat
-          imagenes_url: imageUrls,          // multi
+          imagen_url: imageUrls[0] || null,
+          imagenes_url: imageUrls,
         }),
       });
 
+      if (!res.ok) {
+        // Si el backend devuelve 400 por filtro o límite, mostramos su mensaje
+        const maybeJson = await res.json().catch(() => null);
+        const backendMsg = maybeJson?.error || 'Error al publicar';
+        Alert.alert('Ups', backendMsg);
+        setLoadingPosts(false);
+        return;
+      }
+
       setMensaje('');
       setImagenes([]);
-      obtenerPosts();
+      await cargarPrimeraPagina();
     } catch {
       Alert.alert('Error al publicar');
     } finally {
@@ -234,7 +338,7 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
-  // -------- Eliminar --------
+
   const eliminarPost = async (postId: string) => {
     if (!token) {
       Alert.alert('Error de sesión');
@@ -255,7 +359,7 @@ export default function HomeScreen({ userName }: Props) {
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` },
               });
-              obtenerPosts();
+              await cargarPrimeraPagina();
             } catch {
               Alert.alert('Error', 'No se pudo eliminar la publicación');
             } finally {
@@ -267,14 +371,14 @@ export default function HomeScreen({ userName }: Props) {
     );
   };
 
-  // -------- Helpers --------
+
   const getImagenesFromPost = (p: Post): string[] => {
     if (Array.isArray(p.imagenes_url) && p.imagenes_url.length) return p.imagenes_url;
     if (p.imagen_url) return [p.imagen_url];
     return [];
   };
 
-  // -------- Edición --------
+
   const openEditModal = (post: Post) => {
     setEditMensaje(post.mensaje);
     setEditImagenes(getImagenesFromPost(post));
@@ -307,10 +411,8 @@ export default function HomeScreen({ userName }: Props) {
 
   const actualizarPost = async () => {
     if (!editPostId || !token) return;
-    if (!editMensaje.trim()) {
-      Alert.alert('Escribe un mensaje');
-      return;
-    }
+    if (!validateMessage(editMensaje)) return;
+
     setLoadingEdit(true);
 
     const locales = editImagenes.filter(u => u.startsWith('file:'));
@@ -329,7 +431,7 @@ export default function HomeScreen({ userName }: Props) {
     const finalUrls = [...remotas, ...nuevasSubidas];
 
     try {
-      await fetch(`${POSTS_BASE_URL}/${editPostId}`, {
+      const res = await fetch(`${POSTS_BASE_URL}/${editPostId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -341,11 +443,20 @@ export default function HomeScreen({ userName }: Props) {
           imagenes_url: finalUrls,          // multi
         }),
       });
+
+      if (!res.ok) {
+        const maybeJson = await res.json().catch(() => null);
+        const backendMsg = maybeJson?.error || 'Error al actualizar';
+        Alert.alert('Ups', backendMsg);
+        setLoadingEdit(false);
+        return;
+      }
+
       setEditModalVisible(false);
       setEditMensaje('');
       setEditImagenes([]);
       setEditPostId(null);
-      obtenerPosts();
+      await cargarPrimeraPagina();
     } catch {
       Alert.alert('Error al actualizar');
     } finally {
@@ -353,7 +464,6 @@ export default function HomeScreen({ userName }: Props) {
     }
   };
 
-  // -------- Preview fullscreen --------
   const openImagePreview = (images: string[], startIndex: number) => {
     setPreviewImages(images);
     setPreviewIndex(startIndex);
@@ -372,10 +482,26 @@ export default function HomeScreen({ userName }: Props) {
     return 'Buena noche';
   };
 
+  const handleChangeMensaje = (text: string) => {
+    if (text.length <= MAX_CHARS) setMensaje(text);
+    else setMensaje(text.slice(0, MAX_CHARS));
+  };
+  const handleChangeEditMensaje = (text: string) => {
+    if (text.length <= MAX_CHARS) setEditMensaje(text);
+    else setEditMensaje(text.slice(0, MAX_CHARS));
+  };
+
   const renderItem = ({ item }: { item: Post }) => {
     const isMine = userId && item.usuarios.id === userId;
     const finalAvatar = isMine ? avatarUrl : item.usuarios.foto_url;
     const imgs = getImagenesFromPost(item);
+
+    const isExpanded = !!expanded[item.id];
+    const needsTruncate = item.mensaje.length > DISPLAY_TRUNCATE;
+    const shownText =
+      needsTruncate && !isExpanded
+        ? item.mensaje.slice(0, DISPLAY_TRUNCATE) + '…'
+        : item.mensaje;
 
     return (
       <Card style={styles.post}>
@@ -402,7 +528,19 @@ export default function HomeScreen({ userName }: Props) {
           )}
         </View>
 
-        <Text style={styles.message}>{item.mensaje}</Text>
+        <Text style={styles.message}>{shownText}</Text>
+
+        {needsTruncate && (
+          <Pressable
+            onPress={() =>
+              setExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))
+            }
+          >
+            <Text style={[styles.readMore, { color: t.colors.primary }]}>
+              {isExpanded ? 'Ver menos' : 'Ver más'}
+            </Text>
+          </Pressable>
+        )}
 
         {/* Galería del post */}
         {imgs.length > 0 && (
@@ -457,8 +595,12 @@ export default function HomeScreen({ userName }: Props) {
           placeholderTextColor={t.colors.placeholder}
           multiline
           value={mensaje}
-          onChangeText={setMensaje}
+          onChangeText={handleChangeMensaje}
         />
+        {/* Contador de caracteres */}
+        <Text style={[styles.charCounter, { color: mensaje.length > MAX_CHARS ? t.colors.error : t.colors.placeholder }]}>
+          {mensaje.length}/{MAX_CHARS}
+        </Text>
 
         {/* Bandeja de imágenes seleccionadas (crear) */}
         {imagenes.length > 0 && (
@@ -502,7 +644,7 @@ export default function HomeScreen({ userName }: Props) {
       </Card>
 
       {/* LISTA DE POSTS */}
-      {loadingPosts ? (
+      {loadingPosts && posts.length === 0 ? (
         <ActivityIndicator size="large" color={t.colors.primary} style={{ marginTop: 20 }} />
       ) : (
         <FlatList
@@ -516,6 +658,13 @@ export default function HomeScreen({ userName }: Props) {
               onRefresh={onRefresh}
               colors={[t.colors.primary]}
             />
+          }
+          onEndReachedThreshold={0.4}
+          onEndReached={cargarMas}
+          ListFooterComponent={
+            loadingMore ? (
+              <ActivityIndicator style={{ marginVertical: 16 }} color={t.colors.primary} />
+            ) : null
           }
         />
       )}
@@ -537,8 +686,12 @@ export default function HomeScreen({ userName }: Props) {
               placeholderTextColor={t.colors.placeholder}
               multiline
               value={editMensaje}
-              onChangeText={setEditMensaje}
+              onChangeText={handleChangeEditMensaje}
             />
+            {/* Contador de caracteres (edición) */}
+            <Text style={[styles.charCounter, { color: editMensaje.length > MAX_CHARS ? t.colors.error : t.colors.placeholder }]}>
+              {editMensaje.length}/{MAX_CHARS}
+            </Text>
 
             {/* Bandeja de imágenes en edición */}
             {editImagenes.length > 0 && (
@@ -648,7 +801,7 @@ const makeStyles = (theme: any) =>
       borderRadius: theme.borderRadius.m,
       textAlignVertical: 'top',
       fontSize: theme.fontSize.body,
-      marginBottom: theme.spacing.m,
+      marginBottom: 6, // ajustado para dejar espacio al contador
       color: theme.colors.text,
     },
     imageButton: {
@@ -700,8 +853,12 @@ const makeStyles = (theme: any) =>
     },
     message: {
       fontSize: theme.fontSize.body,
-      marginBottom: theme.spacing.s,
+      marginBottom: 4,
       color: theme.colors.text,
+    },
+    readMore: {
+      fontWeight: '600',
+      marginBottom: theme.spacing.s,
     },
     postImage: {
       width: '100%',
@@ -769,5 +926,11 @@ const makeStyles = (theme: any) =>
     },
     cancelButton: {
       marginTop: 14,
+    },
+    charCounter: {
+      alignSelf: 'flex-end',
+      marginTop: -2,
+      marginBottom: 10,
+      fontSize: theme.fontSize.small,
     },
   });

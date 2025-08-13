@@ -27,17 +27,22 @@ export default function VisitantesScreen() {
   const fetchVisitantes = useCallback(async () => {
     setLoading(true);
     try {
-      const userId = await AsyncStorage.getItem('userId');
-      if (!userId) {
-        Alert.alert('Error', 'No se pudo obtener tu ID');
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        Alert.alert('Sesión', 'No se encontró el token de sesión. Inicia sesión nuevamente.');
         setVisitantes([]);
         return;
       }
-      const res = await fetch(`${VISITANTES_BASE_URL}/${userId}`);
+
+      const res = await fetch(`${VISITANTES_BASE_URL}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
       const text = await res.text();
-      const data = JSON.parse(text);
+      const data = text ? JSON.parse(text) : [];
+
       if (!res.ok || !Array.isArray(data)) {
-        Alert.alert('Error', data?.error || 'No se pudieron cargar los visitantes');
+        Alert.alert('Error', (data && data.error) || 'No se pudieron cargar los visitantes');
         setVisitantes([]);
       } else {
         setVisitantes(data);
@@ -48,9 +53,8 @@ export default function VisitantesScreen() {
     } finally {
       setLoading(false);
     }
-  }, [setVisitantes, setLoading]);
+  }, []);
 
-  // 🔁 Re-fetch SIEMPRE que la pantalla toma foco (al volver de Crear/Editar)
   useFocusEffect(
     useCallback(() => {
       fetchVisitantes();
@@ -78,14 +82,20 @@ export default function VisitantesScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              const token = await AsyncStorage.getItem('token');
+              if (!token) {
+                Alert.alert('Sesión', 'No se encontró el token de sesión.');
+                return;
+              }
               const res = await fetch(`${VISITANTES_BASE_URL}/${visitanteId}`, {
                 method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
               });
               if (res.ok) {
                 Alert.alert('Eliminado', 'El visitante fue eliminado');
                 fetchVisitantes(); // 🔄 refresca tras eliminar
               } else {
-                const data = await res.json();
+                const data = await res.json().catch(() => ({}));
                 Alert.alert('Error', data?.error || 'No se pudo eliminar');
               }
             } catch {
@@ -124,7 +134,7 @@ export default function VisitantesScreen() {
 
         <FlatList
           data={visitantes}
-          keyExtractor={item => item.id?.toString?.() ?? String(item.id)}
+          keyExtractor={item => item?.id?.toString?.() ?? String(item.id)}
           renderItem={({ item }) => (
             <View style={[styles.item, { backgroundColor: theme.colors.card }]}>
               <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>

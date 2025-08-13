@@ -33,13 +33,14 @@ export default function CrearVisitanteScreen() {
     if (!nombre || !identidad || !placa || !marca || !modelo || !color) {
       return Alert.alert('Todos los campos son obligatorios');
     }
-    const residenteId = await AsyncStorage.getItem('userId');
-    if (!residenteId) return Alert.alert('Error', 'No se pudo obtener tu ID');
+
+    const token = await AsyncStorage.getItem('token');
+    if (!token) return Alert.alert('Sesión', 'No se encontró el token de sesión.');
 
     const url = visitante ? `${VISITANTES_BASE_URL}/${visitante.id}` : VISITANTES_BASE_URL;
     const method = visitante ? 'PUT' : 'POST';
+
     const payload = {
-      residente_id: residenteId,
       nombre,
       identidad,
       placa,
@@ -51,20 +52,24 @@ export default function CrearVisitanteScreen() {
     try {
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify(payload),
       });
-      const data = JSON.parse(await res.text());
-      if (!res.ok) throw new Error(data.error || 'No se pudo guardar');
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
 
-      // ⬇️ cambio: simplemente volver; VisitantesScreen hará re-fetch al tomar foco
+      if (!res.ok) throw new Error(data?.error || 'No se pudo guardar');
+
       Alert.alert(
         visitante ? 'Actualizado' : 'Creado',
         'Operación exitosa',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (e: any) {
-      Alert.alert('Error', e.message.includes('conectar') ? 'Error de conexión' : e.message);
+      Alert.alert('Error', e?.message?.includes('conectar') ? 'Error de conexión' : e?.message || 'Error');
     }
   };
 
