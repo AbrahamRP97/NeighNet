@@ -39,6 +39,23 @@ export default function EditProfileScreen() {
   const [uploading, setUploading] = useState(false);
   const navigation = useNavigation<any>();
 
+  // Helper centralizado: trae userId + token y valida.
+  const getAuthOrFail = async () => {
+    const [userId, token] = await Promise.all([
+      AsyncStorage.getItem('userId'),
+      AsyncStorage.getItem('token'),
+    ]);
+    if (!userId || !token) {
+      Alert.alert(
+        'Sesión requerida',
+        'No se encontró un token de sesión. Inicia sesión nuevamente.',
+        [{ text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) }]
+      );
+      throw new Error('MISSING_AUTH'); // corta el flujo en quien lo llame
+    }
+    return { userId, token };
+  };
+
   useEffect(() => {
     cargarPerfil();
   }, []);
@@ -46,25 +63,17 @@ export default function EditProfileScreen() {
   const cargarPerfil = async () => {
     setLoading(true);
     try {
-      const [userId, token] = await Promise.all([
-        AsyncStorage.getItem('userId'),
-        AsyncStorage.getItem('token'),
-      ]);
-      if (!userId) {
-        Alert.alert('Error', 'No se encontró el ID del usuario');
-        navigation.goBack();
-        return;
-      }
+      const { userId, token } = await getAuthOrFail(); // obliga token presente
       const url = `${AUTH_BASE_URL}/${userId}`;
       const res = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`, // <-- token siempre
         },
       });
+
       const status = res.status;
       const raw = await res.text();
-
       let data: any = null;
       try {
         data = raw ? JSON.parse(raw) : null;
@@ -74,8 +83,9 @@ export default function EditProfileScreen() {
 
       if (!res.ok || !data?.nombre) {
         const msg = data?.error || `Error al obtener el perfil (status ${status})`;
-        Alert.alert('Error', msg);
-        navigation.goBack();
+        Alert.alert('Error', msg, [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
         return;
       }
 
@@ -87,8 +97,11 @@ export default function EditProfileScreen() {
       setFotoBase('');
       setPicked(null);
     } catch (err: any) {
-      Alert.alert('Error de red', 'No se pudo conectar al servidor');
-      navigation.goBack();
+      if (err?.message !== 'MISSING_AUTH') {
+        Alert.alert('Error de red', 'No se pudo conectar al servidor', [
+          { text: 'OK', onPress: () => navigation.goBack() },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -154,9 +167,14 @@ export default function EditProfileScreen() {
         return null;
       }
 
+      const token = await AsyncStorage.getItem('token');
+      // la firma de subida normal no necesita Authorization
       const signedRes = await fetch(`${UPLOADS_BASE_URL}/signed-url`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           fileName,
           contentType: mime,
@@ -216,16 +234,8 @@ export default function EditProfileScreen() {
     }
     setLoading(true);
     try {
-      const [userId, token] = await Promise.all([
-        AsyncStorage.getItem('userId'),
-        AsyncStorage.getItem('token'),
-      ]);
-      if (!userId) {
-        Alert.alert('Error', 'ID no disponible');
-        setLoading(false);
-        return;
-      }
-
+      const { userId, token } = await getAuthOrFail(); // <-- exige token
+      // Subida de foto (opcional)
       let foto_url = foto;
       if (picked?.uri) {
         setUploading(true);
@@ -247,7 +257,7 @@ export default function EditProfileScreen() {
         correo,
         telefono,
         numero_casa: numeroCasa,
-        foto_url,
+        foto_url, // se conserva la actual o se envía la nueva si se cambió
       };
 
       const url = `${AUTH_BASE_URL}/update/${userId}`;
@@ -255,7 +265,7 @@ export default function EditProfileScreen() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          Authorization: `Bearer ${token}`, // <-- token siempre
         },
         body: JSON.stringify(payload),
       });
@@ -279,13 +289,16 @@ export default function EditProfileScreen() {
       Alert.alert('Éxito', 'Perfil actualizado', [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
-    } catch {
-      Alert.alert('Error de red', 'No se pudo conectar al servidor');
+    } catch (err: any) {
+      if (err?.message !== 'MISSING_AUTH') {
+        Alert.alert('Error de red', 'No se pudo conectar al servidor');
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Limpia únicamente la selección local (no elimina la foto del perfil guardada)
   const limpiarImagenSeleccionada = () => {
     setFotoBase('');
     setPicked(null);
@@ -326,6 +339,8 @@ export default function EditProfileScreen() {
             <ImagePlus color="#fff" size={22} />
           </View>
         </TouchableOpacity>
+
+        {/* X que solo limpia la selección local si acabas de elegir una nueva imagen */}
         {fotoBase ? (
           <TouchableOpacity style={styles.clearThumb} onPress={limpiarImagenSeleccionada}>
             <X color="#fff" size={16} />

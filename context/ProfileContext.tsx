@@ -8,18 +8,18 @@ type Profile = {
   correo?: string;
   telefono?: string | null;
   numero_casa?: string | null;
-  foto_url?: string | null;       // URL firmada actual (backend)
-  avatar_version?: number;        // opcional: si decides guardarlo en DB
+  foto_url?: string | null;
+  avatar_version?: number;
   updated_at?: string;
 };
 
 type Ctx = {
   loading: boolean;
   profile: Profile | null;
-  avatarUrl: string | null;                    // URL con ?v= para romper caché
-  refreshProfile: () => Promise<void>;         // refetch del perfil
-  notifyAvatarUpdated: () => Promise<void>;    // llamar tras cambiar foto
-  clearProfile: () => void;                    // limpiar perfil (logout)
+  avatarUrl: string | null;
+  refreshProfile: () => Promise<void>;
+  notifyAvatarUpdated: () => Promise<void>;
+  clearProfile: () => void;
 };
 
 const ProfileContext = createContext<Ctx | null>(null);
@@ -42,30 +42,20 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         AsyncStorage.getItem('token'),
       ]);
       if (!userId) throw new Error('No userId in storage');
-
       const res = await fetch(`${AUTH_BASE_URL}/${userId}`, {
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
-
-      const text = await res.text();
-      let data: Profile | { error?: string } = {};
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error('Respuesta del servidor no es JSON');
-      }
-
+      const txt = await res.text();
+      const data: Profile = txt ? JSON.parse(txt) : ({} as any);
       if (!res.ok) {
-        const msg = (data as any)?.error || `Error al obtener el perfil (status ${res.status})`;
-        console.log('[ProfileProvider] fetchProfile error HTTP:', msg);
+        console.log('[ProfileProvider] fetchProfile error status:', res.status, data);
         setProfile(null);
         return;
       }
-
-      setProfile(data as Profile);
+      setProfile(data);
     } catch (e) {
       console.log('[ProfileProvider] fetchProfile error:', e);
       setProfile(null);
@@ -89,8 +79,8 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [fetchProfile]);
 
   const notifyAvatarUpdated = useCallback(async () => {
-    await fetchProfile();               // refirma url
-    setLocalAvatarVersion((x) => x + 1); // y rompe caché local
+    await fetchProfile();
+    setLocalAvatarVersion((x) => x + 1);
   }, [fetchProfile]);
 
   const clearProfile = () => {

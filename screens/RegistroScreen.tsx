@@ -44,6 +44,7 @@ export default function RegistroScreen() {
       Alert.alert('Sin conexión', 'Activa internet antes de registrarte');
       return;
     }
+
     const correoOk = validarCorreo(correo);
     const passOk = validarPass(contrasena);
     const matchOk = contrasena === confirmar;
@@ -51,6 +52,7 @@ export default function RegistroScreen() {
     setPassError(!passOk);
     setMatchError(!matchOk);
     if (!correoOk || !passOk || !matchOk) return;
+
     if (!nombre || !telefono || !numeroCasa) {
       Alert.alert('Todos los campos son obligatorios');
       return;
@@ -69,23 +71,40 @@ export default function RegistroScreen() {
           contrasena,
         }),
       });
+
       const text = await res.text();
-      const data = JSON.parse(text);
-      if (!res.ok) {
-        Alert.alert('Error', data.error || 'No se pudo registrar');
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        Alert.alert('Error', 'Respuesta inválida del servidor');
         return;
       }
-      const { data: userData, token } = data;
-      if (userData && userData[0] && token) {
-        // Guarda sesión automática
-        await AsyncStorage.setItem('userId', userData[0].id);
-        await AsyncStorage.setItem('userName', userData[0].nombre);
-        await AsyncStorage.setItem('userRole', userData[0].rol || 'residente');
-        await AsyncStorage.setItem('token', token);
-        navigation.replace('Main', { userName: userData[0].nombre });
+
+      if (!res.ok) {
+        Alert.alert('Error', data?.error || 'No se pudo registrar');
+        return;
+      }
+
+      // El backend puede devolver { data: [usuario], token } o { usuario, token }
+      const userData = Array.isArray(data?.data) ? data.data[0] : data?.usuario;
+      const tokenRaw = data?.token;
+
+      if (userData?.id && userData?.nombre && tokenRaw) {
+        // 🔑 Normaliza el token: guarda SOLO el JWT sin 'Bearer '
+        const normalizedToken = String(tokenRaw).startsWith('Bearer ')
+          ? String(tokenRaw).slice(7).trim()
+          : String(tokenRaw).trim();
+
+        await AsyncStorage.setItem('userId', String(userData.id));
+        await AsyncStorage.setItem('userName', String(userData.nombre));
+        await AsyncStorage.setItem('userRole', String(userData.rol || 'residente'));
+        await AsyncStorage.setItem('token', normalizedToken);
+
+        navigation.replace('Main', { userName: userData.nombre });
       } else {
-        // Si tu backend solo devuelve el mensaje, pide login manual.
-        Alert.alert('Éxito', 'Cuenta creada', [
+        // Si tu backend no devuelve token/usuario, pide login manual
+        Alert.alert('Éxito', 'Cuenta creada. Inicia sesión para continuar.', [
           { text: 'OK', onPress: () => navigation.replace('Login') },
         ]);
       }

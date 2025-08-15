@@ -54,21 +54,38 @@ export default function LoginScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: email, contrasena: password }),
       });
+
       const text = await res.text();
-      const data = JSON.parse(text);
-      if (!res.ok) {
-        Alert.alert('Error', data.error || 'Credenciales inválidas');
+      let data: any = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        Alert.alert('Error', 'Respuesta inválida del servidor');
         return;
       }
-      const { usuario, token } = data;
+
+      if (!res.ok) {
+        Alert.alert('Error', data?.error || 'Credenciales inválidas');
+        return;
+      }
+
+      const { usuario, token } = data || {};
       if (!usuario?.id || !usuario?.nombre || !token) {
         Alert.alert('Error', 'Datos del usuario incompletos');
         return;
       }
-      await AsyncStorage.setItem('userId', usuario.id);
-      await AsyncStorage.setItem('userName', usuario.nombre);
-      await AsyncStorage.setItem('userRole', usuario.rol || 'residente');
-      await AsyncStorage.setItem('token', token);
+
+      // 🔑 Normaliza el token: guarda SOLO el JWT sin 'Bearer '
+      const rawToken = String(token || '');
+      const normalizedToken = rawToken.startsWith('Bearer ')
+        ? rawToken.slice(7).trim()
+        : rawToken.trim();
+
+      await AsyncStorage.setItem('userId', String(usuario.id));
+      await AsyncStorage.setItem('userName', String(usuario.nombre));
+      await AsyncStorage.setItem('userRole', String(usuario.rol || 'residente'));
+      await AsyncStorage.setItem('token', normalizedToken);
+
       navigation.replace('Main', { userName: usuario.nombre });
     } catch {
       Alert.alert('Error de conexión', 'No se pudo conectar al servidor');

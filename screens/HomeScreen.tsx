@@ -114,7 +114,7 @@ export default function HomeScreen({ userName }: Props) {
 
   const { theme: t } = useTheme();
   const navigation = useNavigation<any>();
-  const { avatarUrl } = useProfile();
+  const { avatarUrl, notifyAvatarUpdated } = useProfile();
   const styles = makeStyles(t);
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -130,10 +130,11 @@ export default function HomeScreen({ userName }: Props) {
   }, []);
 
   useFocusEffect(
-    useCallback(() => {
-      if (sessionReady && token) {
-        cargarPrimeraPagina();
-      }
+  useCallback(() => {
+    notifyAvatarUpdated?.();   // 🔹 refresca el avatar propio
+    if (sessionReady && token) {
+      cargarPrimeraPagina();
+    }
     }, [sessionReady, token])
   );
 
@@ -556,7 +557,7 @@ export default function HomeScreen({ userName }: Props) {
 
   const renderItem = ({ item }: { item: Post }) => {
     const isMine = userId && item.usuarios.id === userId;
-    const finalAvatar = isMine ? avatarUrl : item.usuarios.foto_url;
+    const finalAvatar = isMine ? (avatarUrl || item.usuarios.foto_url) : item.usuarios.foto_url;
     const imgs = getImagenesFromPost(item);
 
     const isExpanded = !!expanded[item.id];
@@ -568,28 +569,35 @@ export default function HomeScreen({ userName }: Props) {
 
     return (
       <Card style={styles.post}>
-        <View style={styles.userInfo}>
-          {finalAvatar ? (
-            <Image source={{ uri: finalAvatar }} style={styles.avatar} key={finalAvatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder} />
-          )}
-          <Text style={styles.username}>{item.usuarios.nombre}</Text>
-          {isMine && (
-            <Pressable
-              style={{ marginLeft: 10, padding: 4 }}
-              onPress={() => {
-                Alert.alert('Opciones', '', [
-                  { text: 'Editar', onPress: () => openEditModal(item) },
-                  { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
-                  { text: 'Cancelar', style: 'cancel' },
-                ]);
-              }}
-            >
-              <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
-            </Pressable>
-          )}
-        </View>
+  <View style={styles.userInfo}>
+    {/* Avatar con preview */}
+    <Pressable
+      onPress={() => { if (finalAvatar) openImagePreview([finalAvatar], 0); }}
+      hitSlop={8}
+    >
+      {finalAvatar ? (
+        <Image source={{ uri: finalAvatar }} style={styles.avatar} key={finalAvatar} />
+      ) : (
+        <View style={styles.avatarPlaceholder} />
+      )}
+    </Pressable>
+
+    <Text style={styles.username}>{item.usuarios.nombre}</Text>
+    {isMine && (
+      <Pressable
+        style={{ marginLeft: 10, padding: 4 }}
+        onPress={() => {
+          Alert.alert('Opciones', '', [
+            { text: 'Editar', onPress: () => openEditModal(item) },
+            { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
+            { text: 'Cancelar', style: 'cancel' },
+          ]);
+        }}
+      >
+        <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
+      </Pressable>
+      )}
+    </View>
 
         <Text style={styles.message}>{shownText}</Text>
 
