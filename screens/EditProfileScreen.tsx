@@ -298,6 +298,69 @@ export default function EditProfileScreen() {
     }
   };
 
+  const quitarFotoPerfil = async () => {
+  Alert.alert(
+    'Quitar foto',
+    '¿Deseas eliminar tu foto de perfil?',
+    [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const { userId, token } = await getAuthOrFail();
+            const url = `${AUTH_BASE_URL}/update/${userId}`;
+
+            const payload = {
+              nombre,
+              correo,
+              telefono,
+              numero_casa: numeroCasa,
+              remove_avatar: true, // ← clave para que el backend ponga NULL
+              foto_url: ''         // ← redundante pero válido con tu backend
+            };
+
+            setLoading(true);
+            const res = await fetch(url, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify(payload),
+            });
+
+            const text = await res.text();
+            let data: any = null;
+            try { data = text ? JSON.parse(text) : null; } catch {}
+
+            if (!res.ok) {
+              const msg = data?.error || `No se pudo actualizar (status ${res.status})`;
+              Alert.alert('Error', msg);
+              return;
+            }
+
+            // Limpia estado local tras eliminar
+            setFoto('');
+            setFotoBase('');
+            setPicked(null);
+            await notifyAvatarUpdated();
+
+            Alert.alert('Listo', 'Se quitó tu foto de perfil.');
+          } catch (err: any) {
+            if (err?.message !== 'MISSING_AUTH') {
+              Alert.alert('Error de red', 'No se pudo conectar al servidor');
+            }
+          } finally {
+            setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Limpia únicamente la selección local (no elimina la foto del perfil guardada)
   const limpiarImagenSeleccionada = () => {
     setFotoBase('');
@@ -324,6 +387,14 @@ export default function EditProfileScreen() {
       <Text style={[styles.title, { color: theme.colors.primary }]}>Editar Perfil</Text>
 
       <View style={styles.avatarWrap}>
+        {!fotoBase && !!foto ? (
+          <TouchableOpacity
+            style={styles.removeButton}
+             onPress={quitarFotoPerfil}
+              disabled={uploading || loading}>
+              <Text style={styles.removeButtonText}>Quitar foto de perfil</Text>
+            </TouchableOpacity>
+          ) : null}        
         <TouchableOpacity style={styles.avatarContainer} onPress={seleccionarImagen} activeOpacity={0.8}>
           <Image
             source={
@@ -411,6 +482,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
+  removeButton: {
+  paddingVertical: 10,
+  paddingHorizontal: 14,
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: '#e33',
+  alignSelf: 'stretch',
+  marginBottom: 10,
+},
+removeButtonText: {
+  textAlign: 'center',
+  fontWeight: 'bold',
+  color: '#e33',
+},
   clearThumb: {
     position: 'absolute',
     top: -6,

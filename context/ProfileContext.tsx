@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
 
@@ -37,24 +37,51 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const [userId, token] = await Promise.all([
-        AsyncStorage.getItem('userId'),
-        AsyncStorage.getItem('token'),
-      ]);
-      if (!userId) throw new Error('No userId in storage');
-      const res = await fetch(`${AUTH_BASE_URL}/${userId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-      const txt = await res.text();
-      const data: Profile = txt ? JSON.parse(txt) : ({} as any);
-      if (!res.ok) {
-        console.log('[ProfileProvider] fetchProfile error status:', res.status, data);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        // No hay sesión -> perfil nulo
         setProfile(null);
         return;
       }
+
+      const url = `${AUTH_BASE_URL}/me`;
+      console.log('[ProfileProvider] GET perfil URL:', url);
+
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const txt = await res.text();
+      let data: Profile = {} as any;
+      try {
+        data = txt ? JSON.parse(txt) : ({} as any);
+      } catch (e) {
+        console.log('[ProfileProvider] JSON parse error:', e);
+      }
+
+      if (!res.ok) {
+        console.log('[ProfileProvider] fetchProfile error status:', res.status, data);
+
+        if (res.status === 401 || res.status === 403) {
+          // Token inválido/expirado -> limpiar sesión
+          await AsyncStorage.clear();
+          setProfile(null);
+          return;
+        }
+
+        setProfile(null);
+        return;
+      }
+
+      if (!data?.id) {
+        console.log('[ProfileProvider] Respuesta sin id. Data:', data);
+        setProfile(null);
+        return;
+      }
+
       setProfile(data);
     } catch (e) {
       console.log('[ProfileProvider] fetchProfile error:', e);
