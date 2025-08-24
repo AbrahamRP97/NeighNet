@@ -60,7 +60,7 @@ export default function TabsNavigator({ route, navigation }: any) {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        animationEnabled: true, // <-- Habilita transiciones suaves entre tabs
+        animationEnabled: true,
         tabBarActiveTintColor: '#2c3e50',
         tabBarInactiveTintColor: '#bdc3c7',
         tabBarLabelStyle: { fontSize: 12 },
@@ -98,7 +98,8 @@ export default function TabsNavigator({ route, navigation }: any) {
       {userRole === 'residente' && (
         <Tab.Screen name="QR" component={QRTabScreen} />
       )}
-      {userRole === 'vigilancia' && (
+
+      {(userRole === 'vigilancia' || userRole === 'admin') && (
         <Tab.Screen name="Escanear QR" component={QRScannerScreen} />
       )}
 

@@ -77,7 +77,7 @@ export default function OptionsScreen() {
                         method: 'DELETE',
                         headers: {
                           'Content-Type': 'application/json',
-                          Authorization: `Bearer ${tk}`, // <-- token
+                          Authorization: `Bearer ${tk}`,
                         },
                       });
                       if (!res.ok) throw new Error('No se pudo eliminar la cuenta');
@@ -113,7 +113,9 @@ export default function OptionsScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <ArrowLeft color={theme.colors.primary} size={28} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.primary }]}>Configuración</Text>
+        <Text style={[styles.title, { color: theme.colors.primary }]}>
+          Configuración
+        </Text>
         <View style={{ width: 28 }} />
       </View>
 
@@ -122,7 +124,9 @@ export default function OptionsScreen() {
         onPress={() => navigation.navigate('EditProfileScreen')}
       >
         <Edit color={theme.colors.primary} size={22} />
-        <Text style={[styles.optionText, { color: theme.colors.text }]}>Editar perfil</Text>
+        <Text style={[styles.optionText, { color: theme.colors.text }]}>
+          Editar perfil
+        </Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -130,12 +134,16 @@ export default function OptionsScreen() {
         onPress={() => navigation.navigate('ChangePasswordScreen')}
       >
         <Lock color={theme.colors.primary} size={22} />
-        <Text style={[styles.optionText, { color: theme.colors.text }]}>Cambiar contraseña</Text>
+        <Text style={[styles.optionText, { color: theme.colors.text }]}>
+          Cambiar contraseña
+        </Text>
       </TouchableOpacity>
 
       <View style={styles.option}>
         <Moon color={theme.colors.primary} size={22} />
-        <Text style={[styles.optionText, { color: theme.colors.text }]}>Modo oscuro</Text>
+        <Text style={[styles.optionText, { color: theme.colors.text }]}>
+          Modo oscuro
+        </Text>
         <Switch
           style={{ marginLeft: 'auto' }}
           value={themeType === 'dark'}
@@ -146,20 +154,23 @@ export default function OptionsScreen() {
       </View>
 
       <TouchableOpacity
-        style={[styles.option, styles.deleteOption]}
-        onPress={handleDeleteAccount}
-      >
-        <Trash2 color="red" size={22} />
-        <Text style={[styles.optionText, { color: 'red' }]}>Eliminar cuenta</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.logoutButton, { backgroundColor: theme.colors.primary }]}
+        style={[styles.option, styles.logoutButton, { backgroundColor: theme.colors.primary }]}
         onPress={handleLogout}
       >
         <LogOut color="#fff" size={22} />
         <Text style={styles.logoutText}>Cerrar sesión</Text>
       </TouchableOpacity>
+
+      {/* Footer con el botón Eliminar cuenta */}
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDeleteAccount}
+        >
+          <Trash2 color="red" size={22} />
+          <Text style={styles.deleteText}>Eliminar cuenta</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -168,7 +179,6 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     padding: 24,
-    alignItems: 'stretch',
   },
   header: {
     flexDirection: 'row',
@@ -191,10 +201,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 14,
   },
-  deleteOption: {
-    marginTop: 20,
-    borderBottomWidth: 0,
-  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -208,5 +214,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 10,
+  },
+  footer: {
+    marginTop: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  deleteText: {
+    fontSize: 16,
+    marginLeft: 10,
+    color: 'red',
+    fontWeight: 'bold',
   },
 });

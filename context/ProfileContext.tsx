@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
+import { registerAndSyncPushToken } from '../utils/Pushnotifications';
 
 type Profile = {
   id?: string;
@@ -33,13 +34,13 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [localAvatarVersion, setLocalAvatarVersion] = useState(0);
+  const [pushSynced, setPushSynced] = useState(false); // 👈 AÑADIDO
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('token');
       if (!token) {
-        // No hay sesión -> perfil nulo
         setProfile(null);
         return;
       }
@@ -66,7 +67,6 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         console.log('[ProfileProvider] fetchProfile error status:', res.status, data);
 
         if (res.status === 401 || res.status === 403) {
-          // Token inválido/expirado -> limpiar sesión
           await AsyncStorage.clear();
           setProfile(null);
           return;
@@ -95,6 +95,18 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fetchProfile();
   }, [fetchProfile]);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!profile?.id || pushSynced) return;
+        const ok = await registerAndSyncPushToken();
+        if (ok) setPushSynced(true);
+      } catch {
+        // Ignorar errores de push
+      }
+    })();
+  }, [profile?.id, pushSynced]);
+
   const avatarUrl = useMemo(() => {
     const base = profile?.foto_url ?? null;
     const v = (profile?.avatar_version ?? 0) + localAvatarVersion;
@@ -113,6 +125,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const clearProfile = () => {
     setProfile(null);
     setLocalAvatarVersion(0);
+    setPushSynced(false);
   };
 
   const value: Ctx = {

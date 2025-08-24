@@ -4,8 +4,7 @@ import { CameraView, Camera } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
-
-const BACKEND_URL = 'https://neighnet-backend.onrender.com/api/vigilancia/scan';
+import { VIGILANCIA_BASE_URL } from '../api';
 
 export default function QRScannerScreen() {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -18,7 +17,6 @@ export default function QRScannerScreen() {
   const isFocused = useIsFocused();
   const cameraRef = useRef<CameraView | null>(null);
 
-  // anti-ráfaga suave
   const scannedRef = useRef(false);
   const lastScanTs = useRef(0);
 
@@ -26,8 +24,12 @@ export default function QRScannerScreen() {
     (async () => {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
-      setUserRole(await AsyncStorage.getItem('userRole'));
-      setToken(await AsyncStorage.getItem('token'));
+      const [role, tk] = await Promise.all([
+        AsyncStorage.getItem('userRole'),
+        AsyncStorage.getItem('token'),
+      ]);
+      setUserRole(role);
+      setToken(tk);
     })();
   }, []);
 
@@ -37,9 +39,7 @@ export default function QRScannerScreen() {
       lastScanTs.current = 0;
       setLoading(false);
       setTorchOn(false);
-      return () => {
-        // no pausamos la preview para evitar "freeze"
-      };
+      return () => {};
     }, [])
   );
 
@@ -48,6 +48,9 @@ export default function QRScannerScreen() {
     else navigation.getParent?.()?.navigate?.('Inicio');
   };
 
+  const isGuard = (role: string | null) =>
+    role === 'vigilancia' || role === 'admin';
+
   const handleBarCodeScanned = useCallback(
     async ({ data }: { type: string; data: string }) => {
       const now = Date.now();
@@ -55,13 +58,17 @@ export default function QRScannerScreen() {
       lastScanTs.current = now;
       scannedRef.current = true;
 
-      if (userRole !== 'vigilancia') {
-        Alert.alert('Acceso denegado', 'Solo el personal de vigilancia puede escanear QR.');
+      if (!isGuard(userRole)) {
+        Alert.alert('Acceso denegado', 'Solo vigilancia o admin pueden escanear QR.');
+        setTimeout(() => (scannedRef.current = false), 900);
+        return;
+      }
+      if (!token) {
+        Alert.alert('Sesión', 'No hay token de sesión. Inicia sesión nuevamente.');
         setTimeout(() => (scannedRef.current = false), 900);
         return;
       }
 
-      // Parseo del QR
       let payload: any;
       try { payload = JSON.parse(data); } catch { payload = { id_qr: data }; }
 
@@ -82,22 +89,28 @@ export default function QRScannerScreen() {
         return;
       }
 
-      // Deshabilita el handler durante la request (sin pausar la cámara)
       setLoading(true);
       try {
-        const res = await fetch(BACKEND_URL, {
+        const res = await fetch(`${VIGILANCIA_BASE_URL}/scan`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ id_qr, visitante_id, expires_at }),
         });
-        const result = await res.json();
+        const result = await res.json().catch(() => ({}));
 
         if (res.ok) {
           if (result?.message?.includes('Entrada')) {
-            Alert.alert('Entrada registrada', 'El visitante ha ingresado.');
+            // Navegamos a la captura de evidencia con la visita creada
+            const visitaId = result?.data?.id;
+            if (!visitaId) {
+              Alert.alert('Atención', 'Entrada registrada, pero no se obtuvo ID de visita.');
+            } else {
+              navigation.navigate('EvidenceCapture', { visitaId });
+              return; // no mostrar alerta ahora; la pantalla siguiente se encarga
+            }
           } else if (result?.message?.includes('Salida')) {
             Alert.alert('Salida registrada', 'El visitante ha salido.');
           } else {
@@ -113,7 +126,7 @@ export default function QRScannerScreen() {
         setTimeout(() => { scannedRef.current = false; }, 900);
       }
     },
-    [token, userRole]
+    [token, userRole, navigation]
   );
 
   if (hasPermission === null) {
@@ -143,8 +156,7 @@ export default function QRScannerScreen() {
           ref={cameraRef}
           style={{ flex: 1 }}
           facing="back"
-          // Plan A estable: sin filtros (si luego te funciona, puedes probar con: barcodeScannerSettings={{ barcodeTypes: ['qr'] }})
-          onBarcodeScanned={loading ? undefined : handleBarCodeScanned} // 👈 desactivamos mientras hay request
+          onBarcodeScanned={loading ? undefined : handleBarCodeScanned}
           autofocus="on"
           zoom={0}
           enableTorch={torchOn}

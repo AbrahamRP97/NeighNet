@@ -83,7 +83,8 @@ export default function LoginScreen() {
 
       await AsyncStorage.setItem('userId', String(usuario.id));
       await AsyncStorage.setItem('userName', String(usuario.nombre));
-      await AsyncStorage.setItem('userRole', String(usuario.rol || 'residente'));
+      await AsyncStorage.setItem('userRole', data.usuario.rol); // 'residente' | 'vigilancia' | 'admin'
+    //await AsyncStorage.setItem('userRole', String(usuario.rol || 'residente'));
       await AsyncStorage.setItem('token', normalizedToken);
 
       navigation.replace('Main', { userName: usuario.nombre });

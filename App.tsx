@@ -9,7 +9,7 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
-
+import EvidenceCaptureScreen from './screens/EvidenceCaptureScreen';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { ProfileProvider } from './context/ProfileContext';
 import LoginScreen from './screens/LoginScreen';
@@ -84,6 +84,7 @@ function AppContent() {
           <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
           <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
           <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />
+          <Stack.Screen name="EvidenceCapture" component={EvidenceCaptureScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
