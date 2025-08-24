@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AUTH_BASE_URL } from '../api';
-import { registerAndSyncPushToken } from '../utils/Pushnotifications';
+import { registerAndSyncPushToken } from '../utils/pushNotifications';
 
 type Profile = {
   id?: string;
