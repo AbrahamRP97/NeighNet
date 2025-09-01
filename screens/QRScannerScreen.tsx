@@ -98,17 +98,20 @@ export default function QRScannerScreen() {
 
   // Detección de QR firmado
   const parseQr = (data: string) => {
-    // 1) Intentar JSON
+    // 1) Intentar JSON (v2 con envelope o v1 plain)
     try {
       const obj = JSON.parse(data);
-      // v2 con envelope
       if (obj?.envelope || obj?.env) {
         return { mode: 'signed', envelope: obj.envelope ?? obj.env, raw: obj };
       }
-      // v1 sin firma
       return { mode: 'plain', ...obj };
     } catch {
-      // 2) Si no es JSON, tomar como "plain" con id_qr simple
+      // 2) Si no es JSON, detectar JWT compacto (header.payload.signature)
+      const compactJwt = /^[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+$/;
+      if (compactJwt.test((data || '').trim())) {
+        return { mode: 'signed', envelope: (data || '').trim() };
+      }
+      // 3) Caso legacy: id_qr simple
       return { mode: 'plain', id_qr: data };
     }
   };

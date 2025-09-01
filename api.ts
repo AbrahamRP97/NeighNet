@@ -8,3 +8,5 @@ export const VISITANTES_BASE_URL =
   process.env.EXPO_PUBLIC_VISITANTES_BASE_URL || 'https://neighnet-backend.onrender.com/api/visitantes';
 export const UPLOADS_BASE_URL =
   process.env.EXPO_PUBLIC_UPLOADS_BASE_URL || 'https://neighnet-backend.onrender.com/api/uploads';
+export const PASSES_BASE_URL =
+  process.env.EXPO_PUBLIC_PASSES_BASE_URL || 'https://neighnet-backend.onrender.com/api/passes';

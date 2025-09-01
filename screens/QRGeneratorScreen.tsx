@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
 import CustomButton from '../components/CustomButton';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { AUTH_BASE_URL, VIGILANCIA_BASE_URL } from '../api';
+import { AUTH_BASE_URL, PASSES_BASE_URL } from '../api';
 import * as Sharing from 'expo-sharing';
 import { captureRef } from 'react-native-view-shot';
 import Card from '../components/Card';
@@ -118,7 +118,7 @@ export default function QRGeneratorScreen() {
       const token = await AsyncStorage.getItem('token');
       if (!token) return null;
 
-      const res = await fetch(`${VIGILANCIA_BASE_URL}/passes`, {
+      const res = await fetch(`${PASSES_BASE_URL}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
