@@ -8,21 +8,24 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
 } from 'react-native';
 import { VISITANTES_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CustomButton from '../components/CustomButton';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { Pencil, Trash2 } from 'lucide-react-native';
+import { Pencil, Trash2, QrCode } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
 import { LinearGradient } from 'expo-linear-gradient';
+import Card from '../components/Card';
 
 export default function VisitantesScreen() {
   const { theme } = useTheme();
   const [visitantes, setVisitantes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation<any>();
+  const styles = makeStyles(theme);
 
   const fetchVisitantes = useCallback(async () => {
     setLoading(true);
@@ -110,6 +113,16 @@ export default function VisitantesScreen() {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <LinearGradient
+          colors={[theme.colors.primary, theme.colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.banner}
+        >
+          <Text style={styles.bannerTitle}>Visitantes</Text>
+          <Text style={styles.bannerSubtitle}>Selecciona, edita o elimina visitantes</Text>
+        </LinearGradient>
+
         {[...Array(5)].map((_, i) => (
           <ShimmerPlaceHolder
             key={i}
@@ -128,34 +141,62 @@ export default function VisitantesScreen() {
       keyboardVerticalOffset={100}
     >
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Selecciona un visitante
-        </Text>
+        {/* Banner */}
+        <LinearGradient
+          colors={[theme.colors.primary, theme.colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.banner}
+        >
+          <Text style={styles.bannerTitle}>Visitantes</Text>
+          <Text style={styles.bannerSubtitle}>Selecciona, edita o elimina visitantes</Text>
+        </LinearGradient>
 
         <FlatList
           data={visitantes}
-          keyExtractor={item => item?.id?.toString?.() ?? String(item.id)}
+          keyExtractor={(item) => item?.id?.toString?.() ?? String(item.id)}
+          contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => (
-            <View style={[styles.item, { backgroundColor: theme.colors.card }]}>
-              <TouchableOpacity onPress={() => handleSeleccionar(item)} style={{ flex: 1 }}>
-                <Text style={[styles.itemText, { color: theme.colors.text }]}>
-                  {item.nombre} - {item.identidad}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.actions}>
-                <TouchableOpacity onPress={() => handleEditar(item)} style={styles.iconButton}>
-                  <Pencil size={20} color={theme.colors.primary} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleEliminar(item.id)} style={styles.iconButton}>
-                  <Trash2 size={20} color="red" />
-                </TouchableOpacity>
+            <Card onPress={() => handleSeleccionar(item)}>
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
+                    {item.nombre}
+                  </Text>
+                  <Text style={[styles.itemSub, { color: theme.colors.placeholder }]}>
+                    Identidad: {item.identidad}
+                  </Text>
+                  {item.placa ? (
+                    <Text style={[styles.itemSub, { color: theme.colors.placeholder }]}>
+                      Placa: {item.placa}
+                    </Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.actions}>
+                  <Pressable style={styles.iconButton} onPress={() => handleSeleccionar(item)} hitSlop={8}>
+                    <QrCode size={20} color={theme.colors.primary} />
+                  </Pressable>
+                  <Pressable style={styles.iconButton} onPress={() => handleEditar(item)} hitSlop={8}>
+                    <Pencil size={20} color={theme.colors.primary} />
+                  </Pressable>
+                  <Pressable style={styles.iconButton} onPress={() => handleEliminar(item.id)} hitSlop={8}>
+                    <Trash2 size={20} color="red" />
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            </Card>
           )}
           ListEmptyComponent={
-            <Text style={{ textAlign: 'center', marginTop: 16, color: theme.colors.text }}>
-              No hay visitantes registrados aún
-            </Text>
+            <Card>
+              <Text style={{ textAlign: 'center', marginBottom: 12, color: theme.colors.text }}>
+                No hay visitantes registrados aún
+              </Text>
+              <CustomButton
+                title="Agregar nuevo visitante"
+                onPress={() => navigation.navigate('CrearVisitante')}
+              />
+            </Card>
           }
         />
 
@@ -169,28 +210,25 @@ export default function VisitantesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginVertical: 12,
-  },
-  item: {
-    padding: 12,
-    marginVertical: 6,
-    borderRadius: 8,
-    elevation: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemText: { fontSize: 16 },
-  actions: { flexDirection: 'row' },
-  iconButton: { marginLeft: 8 },
-  skeletonItem: {
-    height: 60,
-    borderRadius: 8,
-    marginVertical: 6,
-  },
-});
+const makeStyles = (theme: any) =>
+  StyleSheet.create({
+    container: { flex: 1, padding: 16 },
+    banner: {
+      borderRadius: 16,
+      paddingVertical: 18,
+      paddingHorizontal: 16,
+      marginBottom: 10,
+    },
+    bannerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
+    bannerSubtitle: { color: '#fff', opacity: 0.9, marginTop: 4, fontSize: 13 },
+    row: { flexDirection: 'row', alignItems: 'center' },
+    itemTitle: { fontSize: 16, fontWeight: '700' },
+    itemSub: { fontSize: 13, marginTop: 2 },
+    actions: { flexDirection: 'row', marginLeft: 8, alignItems: 'center' },
+    iconButton: { marginLeft: 8, padding: 6, borderRadius: 10 },
+    skeletonItem: {
+      height: 66,
+      borderRadius: 12,
+      marginVertical: 6,
+    },
+  });

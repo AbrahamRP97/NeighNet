@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -19,6 +9,7 @@ import NetInfo from '@react-native-community/netinfo';
 import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import type { Theme } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
 export default function LoginScreen() {
   const navigation = useNavigation<any>();
@@ -41,8 +32,10 @@ export default function LoginScreen() {
       Alert.alert('Sin conexión', 'Activa tus datos o Wi-Fi antes de iniciar sesión.');
       return;
     }
+
     const correoOk = validarCorreo(email);
-    const passOk = validarContrasena(password);
+    // En login basta con que la contraseña NO esté vacía (evita bloquear logins legítimos):
+    const passOk = password.trim().length > 0;
     setHasEmailError(!correoOk);
     setHasPasswordError(!passOk);
     if (!correoOk || !passOk) return;
@@ -64,6 +57,25 @@ export default function LoginScreen() {
         return;
       }
 
+      // 403 por teléfono no verificado
+      if (res.status === 403 && data?.needPhoneVerify) {
+        Alert.alert(
+          'Verificación requerida',
+          'Enviamos un código por SMS a tu número. Ingrésalo para activar tu cuenta.',
+          [
+            {
+              text: 'Continuar',
+              onPress: () =>
+                navigation.replace('PhoneVerification', {
+                  userId: data.userId,
+                  telefono: data.telefono,
+                }),
+            },
+          ]
+        );
+        return;
+      }
+
       if (!res.ok) {
         Alert.alert('Error', data?.error || 'Credenciales inválidas');
         return;
@@ -75,7 +87,6 @@ export default function LoginScreen() {
         return;
       }
 
-      // 🔑 Normaliza el token: guarda SOLO el JWT sin 'Bearer '
       const rawToken = String(token || '');
       const normalizedToken = rawToken.startsWith('Bearer ')
         ? rawToken.slice(7).trim()
@@ -83,8 +94,7 @@ export default function LoginScreen() {
 
       await AsyncStorage.setItem('userId', String(usuario.id));
       await AsyncStorage.setItem('userName', String(usuario.nombre));
-      await AsyncStorage.setItem('userRole', data.usuario.rol); // 'residente' | 'vigilancia' | 'admin'
-    //await AsyncStorage.setItem('userRole', String(usuario.rol || 'residente'));
+      await AsyncStorage.setItem('userRole', String(usuario.rol || 'residente'));
       await AsyncStorage.setItem('token', normalizedToken);
 
       navigation.replace('Main', { userName: usuario.nombre });
@@ -101,10 +111,19 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container}>
-        <Card style={styles.card}>
+        {/* Banner en gradiente */}
+        <LinearGradient
+          colors={[t.colors.primary, t.colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.banner}
+        >
           <Image source={require('../assets/image.png')} style={styles.logo} />
-          <Text style={styles.title}>Bienvenido a NeighNet</Text>
+          <Text style={styles.bannerTitle}>Bienvenido a NeighNet</Text>
+          <Text style={styles.bannerSubtitle}>Conecta con tu vecindario de forma segura</Text>
+        </LinearGradient>
 
+        <Card style={styles.card}>
           <CustomInput
             placeholder="Correo electrónico"
             value={email}
@@ -152,23 +171,35 @@ const makeStyles = (theme: Theme) =>
       padding: 24,
       backgroundColor: theme.colors.background,
     },
+    banner: {
+      borderRadius: 20,
+      paddingVertical: 22,
+      paddingHorizontal: 18,
+      marginBottom: 16,
+      alignItems: 'center',
+    },
+    bannerTitle: {
+      color: '#fff',
+      fontSize: 20,
+      fontWeight: '800',
+      marginTop: 10,
+    },
+    bannerSubtitle: {
+      color: '#fff',
+      opacity: 0.9,
+      marginTop: 4,
+      fontSize: 13,
+      textAlign: 'center',
+    },
     card: {
-      padding: 24,
-      borderRadius: 12,
+      padding: 20,
+      borderRadius: 16,
     },
     logo: {
-      width: 100,
-      height: 100,
-      borderRadius: 50,
-      alignSelf: 'center',
-      marginBottom: 16,
-    },
-    title: {
-      fontSize: 22,
-      fontWeight: 'bold',
-      color: theme.colors.text,
-      textAlign: 'center',
-      marginBottom: 16,
+      width: 64,
+      height: 64,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.15)',
     },
     errorText: {
       color: theme.colors.error,

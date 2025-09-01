@@ -16,14 +16,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.aber97.neighnet",
-      "buildNumber": "1",
-      "infoPlist": {
-        "LSApplicationQueriesSchemes": [
-          "neighnet",
-          "neighnet"
-        ],
-        "ITSAppUsesNonExemptEncryption": false
-      }
+        "buildNumber": "1",
+        "infoPlist": {
+          "LSApplicationQueriesSchemes": ["neighnet", "tel"],
+          "ITSAppUsesNonExemptEncryption": false
+        }
     },
     "android": {
       "icon": "./assets/adaptive-icon.png",

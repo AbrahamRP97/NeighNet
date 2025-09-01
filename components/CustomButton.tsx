@@ -1,15 +1,7 @@
 import React from 'react';
-import {
-  Pressable,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  Platform,
-  View,
-  Animated,
-} from 'react-native';
+import { Pressable, Text, StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { withHaptics } from '../utils/Haptics';
 
 interface Props {
   title: string;
@@ -19,31 +11,22 @@ interface Props {
   disabled?: boolean;
 }
 
-export default function CustomButton({
-  title,
-  onPress,
-  style,
-  textStyle,
-  disabled = false,
-}: Props) {
+export default function CustomButton({ title, onPress, style, textStyle, disabled = false }: Props) {
   const { theme } = useTheme();
 
   return (
     <Pressable
-      onPress={onPress}
+      // 👇 HÁPTICO “tap” en todos tus botones automáticamente
+      onPress={withHaptics(onPress, 'tap')}
       disabled={disabled}
       android_ripple={{ color: theme.colors.placeholder }}
       style={({ pressed }) => [
         styles.button,
         {
-          backgroundColor: disabled
-            ? theme.colors.placeholder
-            : theme.colors.primary,
+          backgroundColor: disabled ? theme.colors.placeholder : theme.colors.primary,
           opacity: pressed ? 0.7 : 1,
           // Efecto de escala en iOS (más notorio)
-          transform: pressed
-            ? [{ scale: Platform.OS === 'ios' ? 0.96 : 1 }]
-            : [{ scale: 1 }],
+          transform: pressed ? [{ scale: Platform.OS === 'ios' ? 0.96 : 1 }] : [{ scale: 1 }],
           shadowColor: theme.colors.primary,
         },
         style,

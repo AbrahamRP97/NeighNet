@@ -1,21 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  FlatList,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  Modal,
-  ScrollView,
-  Dimensions,
-} from 'react-native';
+import { View, Text, StyleSheet, Image, FlatList, TextInput, Alert, ActivityIndicator, Pressable, KeyboardAvoidingView, Platform, RefreshControl, Modal, ScrollView, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,6 +9,9 @@ import { useTheme } from '../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
+import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
+import { LinearGradient } from 'expo-linear-gradient';
+import { withHaptics, tap, select, success, warning, error as hError } from '../utils/Haptics';
 
 interface Props {
   userName: string;
@@ -33,8 +20,8 @@ interface Props {
 interface Post {
   id: string;
   mensaje: string;
-  imagen_url: string | null;        // compat
-  imagenes_url?: string[] | null;   // multi-imagen opcional
+  imagen_url: string | null;
+  imagenes_url?: string[] | null;
   created_at: string;
   usuarios: { id: string; nombre: string; foto_url: string | null };
 }
@@ -118,6 +105,8 @@ export default function HomeScreen({ userName }: Props) {
   const styles = makeStyles(t);
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
+  const inputRef = useRef<TextInput>(null);
+
   // -------- Inicialización --------
   useEffect(() => {
     (async () => {
@@ -130,20 +119,32 @@ export default function HomeScreen({ userName }: Props) {
   }, []);
 
   useFocusEffect(
-  useCallback(() => {
-    notifyAvatarUpdated?.();   // 🔹 refresca el avatar propio
-    if (sessionReady && token) {
-      cargarPrimeraPagina();
-    }
+    useCallback(() => {
+      notifyAvatarUpdated?.();
+      if (sessionReady && token) {
+        cargarPrimeraPagina();
+      }
     }, [sessionReady, token])
   );
 
+  // Header con íconos (campana, crear, refresh)
   useEffect(() => {
     navigation.setOptions?.({
       headerRight: () => (
-        <Pressable onPress={() => sessionReady && token && cargarPrimeraPagina()} style={{ marginRight: 15 }}>
-          <Ionicons name="refresh" size={24} color={t.colors.primary} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 16, marginRight: 12 }}>
+          <Pressable onPress={() => Alert.alert('Notificaciones', 'Próximamente')}>
+            <Ionicons name="notifications-outline" size={24} color={t.colors.primary} />
+          </Pressable>
+          <Pressable
+            onPress={() => inputRef.current?.focus()}
+            style={{ transform: [{ translateY: 1 }] }}
+          >
+            <Ionicons name="add-circle-outline" size={26} color={t.colors.primary} />
+          </Pressable>
+          <Pressable onPress={() => sessionReady && token && cargarPrimeraPagina()}>
+            <Ionicons name="refresh" size={24} color={t.colors.primary} />
+          </Pressable>
+        </View>
       ),
     });
   }, [navigation, t, sessionReady, token]);
@@ -227,6 +228,7 @@ export default function HomeScreen({ userName }: Props) {
 
   // -------- Selección de imágenes (crear) --------
   const seleccionarImagenes = async () => {
+    tap();
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permiso requerido', 'Se necesita acceso a las fotos.');
@@ -340,13 +342,15 @@ export default function HomeScreen({ userName }: Props) {
       Alert.alert('Límite de caracteres', `El mensaje no puede superar ${MAX_CHARS} caracteres.`);
       return false;
     }
-    const { found, words } = hasBannedWords(text);
+    const { found, words } = hasBANNEDWORDS_FIX(text);
     if (found) {
       Alert.alert('Contenido no permitido', `Tu mensaje contiene palabras no permitidas: ${words.join(', ')}.`);
       return false;
     }
     return true;
   };
+  // fix: reusar misma constante (tipográfico)
+  const hasBANNEDWORDS_FIX = hasBannedWords;
 
   // -------- Publicar --------
   const publicar = async () => {
@@ -388,14 +392,17 @@ export default function HomeScreen({ userName }: Props) {
         const backendMsg = maybeJson?.error || 'Error al publicar';
         Alert.alert('Ups', backendMsg);
         setLoadingPosts(false);
+        hError();
         return;
       }
 
       setMensaje('');
       setImagenes([]);
       await cargarPrimeraPagina();
+      success();
     } catch {
       Alert.alert('Error al publicar');
+      hError();
     } finally {
       setLoadingPosts(false);
     }
@@ -407,6 +414,7 @@ export default function HomeScreen({ userName }: Props) {
       Alert.alert('Error de sesión');
       return;
     }
+    warning();
     Alert.alert(
       '¿Eliminar publicación?',
       '¿Estás seguro de que deseas eliminar este post?',
@@ -423,8 +431,10 @@ export default function HomeScreen({ userName }: Props) {
                 headers: { Authorization: `Bearer ${token}` },
               });
               await cargarPrimeraPagina();
+              success();
             } catch {
               Alert.alert('Error', 'No se pudo eliminar la publicación');
+              hError();
             } finally {
               setLoadingPosts(false);
             }
@@ -450,6 +460,7 @@ export default function HomeScreen({ userName }: Props) {
   };
 
   const seleccionarImagenesEdicion = async () => {
+    tap();
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permiso requerido', 'Se necesita acceso a las fotos.');
@@ -512,6 +523,7 @@ export default function HomeScreen({ userName }: Props) {
         const backendMsg = maybeJson?.error || 'Error al actualizar';
         Alert.alert('Ups', backendMsg);
         setLoadingEdit(false);
+        hError();
         return;
       }
 
@@ -520,6 +532,7 @@ export default function HomeScreen({ userName }: Props) {
       setEditImagenes([]);
       setEditPostId(null);
       await cargarPrimeraPagina();
+      success();
     } catch {
       Alert.alert('Error al actualizar');
     } finally {
@@ -555,6 +568,20 @@ export default function HomeScreen({ userName }: Props) {
     else setEditMensaje(text.slice(0, MAX_CHARS));
   };
 
+  // ---- Skeleton para posts ----
+  const PostCardSkeleton = () => (
+    <Card style={styles.post}>
+      <View style={styles.userInfo}>
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ width: 40, height: 40, borderRadius: 20, marginRight: t.spacing.s }} />
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ height: 16, width: 140, borderRadius: 8 }} />
+      </View>
+      <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ height: 14, borderRadius: 8, marginBottom: 8 }} />
+      <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ height: 14, width: '80%', borderRadius: 8, marginBottom: 12 }} />
+      <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ height: 180, borderRadius: t.borderRadius.m, marginBottom: 10 }} />
+      <ShimmerPlaceHolder LinearGradient={LinearGradient} style={{ height: 12, width: 90, borderRadius: 8, alignSelf: 'flex-end' }} />
+    </Card>
+  );
+
   const renderItem = ({ item }: { item: Post }) => {
     const isMine = userId && item.usuarios.id === userId;
     const finalAvatar = isMine ? (avatarUrl || item.usuarios.foto_url) : item.usuarios.foto_url;
@@ -569,35 +596,42 @@ export default function HomeScreen({ userName }: Props) {
 
     return (
       <Card style={styles.post}>
-  <View style={styles.userInfo}>
-    {/* Avatar con preview */}
-    <Pressable
-      onPress={() => { if (finalAvatar) openImagePreview([finalAvatar], 0); }}
-      hitSlop={8}
-    >
-      {finalAvatar ? (
-        <Image source={{ uri: finalAvatar }} style={styles.avatar} key={finalAvatar} />
-      ) : (
-        <View style={styles.avatarPlaceholder} />
-      )}
-    </Pressable>
+        <View style={styles.userInfo}>
+          {/* Avatar con preview */}
+          <Pressable
+            onPress={() => { if (finalAvatar) openImagePreview([finalAvatar], 0); }}
+            hitSlop={8}
+          >
+            {finalAvatar ? (
+              <Image source={{ uri: finalAvatar }} style={styles.avatar} key={finalAvatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder} />
+            )}
+          </Pressable>
 
-    <Text style={styles.username}>{item.usuarios.nombre}</Text>
-    {isMine && (
-      <Pressable
-        style={{ marginLeft: 10, padding: 4 }}
-        onPress={() => {
-          Alert.alert('Opciones', '', [
-            { text: 'Editar', onPress: () => openEditModal(item) },
-            { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
-            { text: 'Cancelar', style: 'cancel' },
-          ]);
-        }}
-      >
-        <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
-      </Pressable>
-      )}
-    </View>
+          <Text
+            style={styles.username}
+            onPress={() => navigation.navigate('UserProfile', { userId: item.usuarios.id })}
+            suppressHighlighting
+          >
+            {item.usuarios.nombre}
+          </Text>
+
+          {isMine && (
+            <Pressable
+              style={{ marginLeft: 10, padding: 4 }}
+              onPress={() => {
+                Alert.alert('Opciones', '', [
+                  { text: 'Editar', onPress: () => openEditModal(item) },
+                  { text: 'Eliminar', style: 'destructive', onPress: () => eliminarPost(item.id) },
+                  { text: 'Cancelar', style: 'cancel' },
+                ]);
+              }}
+            >
+              <Ionicons name="ellipsis-vertical" size={22} color={t.colors.text} />
+            </Pressable>
+          )}
+        </View>
 
         <Text style={styles.message}>{shownText}</Text>
 
@@ -656,11 +690,20 @@ export default function HomeScreen({ userName }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={100}
     >
-      <Text style={styles.header}>{getGreeting()}, {userName}</Text>
+      {/* Banner con gradiente y saludo */}
+      <LinearGradient
+        colors={[t.colors.primary, t.colors.accent ?? t.colors.primary]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.banner}
+      >
+        <Text style={styles.bannerText}>{getGreeting()}, {userName}</Text>
+      </LinearGradient>
 
       {/* NUEVO POST */}
       <Card style={styles.newPost}>
         <TextInput
+          ref={inputRef}
           style={styles.input}
           placeholder="¿Qué estás pensando?"
           placeholderTextColor={t.colors.placeholder}
@@ -702,7 +745,7 @@ export default function HomeScreen({ userName }: Props) {
             </Text>
           </Pressable>
           <Pressable
-            onPress={publicar}
+            onPress={withHaptics(publicar, 'tap')}
             style={({ pressed }) => [styles.publishButton, { opacity: pressed ? 0.8 : 1 }]}
           >
             {loadingPosts ? (
@@ -716,7 +759,9 @@ export default function HomeScreen({ userName }: Props) {
 
       {/* LISTA DE POSTS */}
       {loadingPosts && posts.length === 0 ? (
-        <ActivityIndicator size="large" color={t.colors.primary} style={{ marginTop: 20 }} />
+        <View style={{ paddingHorizontal: t.spacing.m }}>
+          {[...Array(3)].map((_, i) => <PostCardSkeleton key={i} />)}
+        </View>
       ) : (
         <FlatList
           data={posts}
@@ -853,14 +898,21 @@ const makeStyles = (theme: any) =>
       flex: 1,
       backgroundColor: theme.colors.background,
       paddingHorizontal: theme.spacing.m,
-      paddingTop: theme.spacing.l,
+      paddingTop: 0, // el banner ya aporta espacio
     },
-    header: {
+    banner: {
+      marginHorizontal: -theme.spacing.m,
+      paddingHorizontal: theme.spacing.m,
+      paddingVertical: theme.spacing.l,
+      borderBottomLeftRadius: 20,
+      borderBottomRightRadius: 20,
+      marginBottom: theme.spacing.m,
+    },
+    bannerText: {
       fontSize: theme.fontSize.title,
       fontWeight: 'bold',
-      marginBottom: theme.spacing.m,
       textAlign: 'center',
-      color: theme.colors.primary,
+      color: '#fff',
     },
     newPost: {
       marginBottom: theme.spacing.l,

@@ -46,7 +46,6 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const url = `${AUTH_BASE_URL}/me`;
-      console.log('[ProfileProvider] GET perfil URL:', url);
 
       const res = await fetch(url, {
         headers: {

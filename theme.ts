@@ -1,6 +1,7 @@
 export interface Theme {
   colors: {
     primary: string;
+    accent: string;
     background: string;
     card: string;
     text: string;
@@ -27,7 +28,8 @@ export interface Theme {
 
 export const lightTheme: Theme = {
   colors: {
-    primary: '#1e90ff',
+    primary: '#1E88E5',
+    accent: '#00C2FF',
     background: '#f5faff',
     card: '#ffffff',
     text: '#333333',
@@ -42,7 +44,8 @@ export const lightTheme: Theme = {
 
 export const darkTheme: Theme = {
   colors: {
-    primary: '#bb86fc',
+    primary: '#3B82F6',
+    accent: '#60A5FA',
     background: '#121212',
     card: '#1f1f1f',
     text: '#ffffff',
@@ -50,7 +53,7 @@ export const darkTheme: Theme = {
     error: '#cf6679',
     textContrast: '#000000',
   },
-  spacing: { s: 8, m: 12, l: 16 },
-  fontSize: { small: 12, body: 16, title: 22 },
-  borderRadius: { s: 4, m: 8, l: 12 },
+  spacing: { s: 8, m: 16, l: 24 },
+  fontSize: { small: 12, body: 14, title: 20 },
+  borderRadius: { s: 8, m: 12, l: 16 },
 };

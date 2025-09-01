@@ -1,12 +1,5 @@
 import React, { useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  ViewStyle,
-  StyleProp,
-  Pressable,
-  Animated,
-} from 'react-native';
+import { View, StyleSheet, ViewStyle, StyleProp, Pressable, Animated } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface Props {

@@ -36,7 +36,6 @@ export default function ProfileScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // Refresca solo si tenemos sesión lista
       if (sessionReady) {
         refreshProfile();
       }
@@ -51,6 +50,7 @@ export default function ProfileScreen() {
           { backgroundColor: theme.colors.background },
         ]}
       >
+        <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonBanner} />
         <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonAvatar} />
         <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
         <ShimmerPlaceHolder LinearGradient={LinearGradient} style={styles.skeletonLine} />
@@ -68,23 +68,33 @@ export default function ProfileScreen() {
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.header}>
+      {/* Header con solo tuerca ⚙️ */}
+      <View style={styles.headerRow}>
         <TouchableOpacity
-          onPress={() => {
-            navigation.navigate('OptionsScreen');
-          }}
+          onPress={() => navigation.navigate('OptionsScreen')}
+          style={styles.headerButton}
         >
           <SettingsIcon color={theme.colors.primary} size={24} />
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.title, { color: theme.colors.primary }]}>👤 Perfil</Text>
+      {/* Banner con gradiente */}
+      <LinearGradient
+        colors={[theme.colors.primary, theme.colors.accent]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.banner}
+      >
+        <Text style={styles.bannerTitle}>👤 Perfil</Text>
+      </LinearGradient>
 
+      {/* Avatar */}
       <TouchableOpacity
         onPress={() => {
           navigation.navigate('EditProfileScreen');
         }}
         activeOpacity={0.8}
+        style={{ marginTop: -50 }}
       >
         <Image
           source={avatarUrl ? { uri: avatarUrl } : require('../assets/default-profile.png')}
@@ -96,6 +106,7 @@ export default function ProfileScreen() {
         </Text>
       </TouchableOpacity>
 
+      {/* Campos de perfil */}
       <TextInput
         style={[styles.input, styles.disabledInput]}
         editable={false}
@@ -131,13 +142,32 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flexGrow: 1, padding: 24 },
-  header: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
-  avatar: { width: 100, height: 100, borderRadius: 50, alignSelf: 'center', marginBottom: 6, backgroundColor: '#eee' },
+  container: { flexGrow: 1, padding: 24, paddingTop: 12 },
+  headerRow: { 
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginTop: 12, // 🔽 Bajamos un poco la posición
+  },
+  headerButton: {
+    padding: 6, // para que sea más fácil de presionar
+  },
+  banner: {
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 16,
+    marginBottom: 60,
+  },
+  bannerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+  avatar: {
+    width: 100, height: 100, borderRadius: 50, alignSelf: 'center',
+    marginBottom: 6, backgroundColor: '#eee', borderWidth: 3, borderColor: '#fff'
+  },
   editHint: { textAlign: 'center', marginBottom: 16, fontSize: 13 },
   input: { backgroundColor: '#fff', padding: 12, marginBottom: 12, borderRadius: 8, borderColor: '#ccc', borderWidth: 1, color: '#000' },
   disabledInput: { backgroundColor: '#eee', color: '#777' },
+  skeletonBanner: { height: 70, borderRadius: 16, marginBottom: 20 },
   skeletonAvatar: { width: 100, height: 100, borderRadius: 50, alignSelf: 'center', marginBottom: 16 },
   skeletonLine: { height: 20, borderRadius: 8, marginBottom: 12 },
 });

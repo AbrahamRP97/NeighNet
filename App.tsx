@@ -23,6 +23,8 @@ import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import OptionsScreen from './screens/OptionsScreen';
 import EditProfileScreen from './screens/EditProfileScreen';
 import ChangePasswordScreen from './screens/ChangePasswordScreen';
+import UserProfileScreen from './screens/UserProfileScreen';
+import PhoneVerificationScreen from './screens/PhoneVerificationScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -85,6 +87,8 @@ function AppContent() {
           <Stack.Screen name="CrearVisitante" component={CrearVisitanteScreen} />
           <Stack.Screen name="QRGenerator" component={QRGeneratorScreen} />
           <Stack.Screen name="EvidenceCapture" component={EvidenceCaptureScreen} />
+          <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+          <Stack.Screen name="PhoneVerification" component={PhoneVerificationScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
