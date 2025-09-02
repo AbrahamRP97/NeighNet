@@ -1,3 +1,5 @@
+export const ADMIN_BASE_URL =
+  process.env.EXPO_PUBLIC_ADMIN_BASE_URL || 'https://neighnet-backend.onrender.com/api/admin';
 export const AUTH_BASE_URL =
   process.env.EXPO_PUBLIC_AUTH_BASE_URL || 'https://neighnet-backend.onrender.com/api/auth';
 export const POSTS_BASE_URL =

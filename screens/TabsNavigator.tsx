@@ -95,7 +95,8 @@ export default function TabsNavigator({ route, navigation }: any) {
         {() => <HomeScreen userName={userName} />}
       </Tab.Screen>
 
-      {userRole === 'residente' && (
+      {/* ✅ El admin también ve la pestaña de QR (además del residente) */}
+      {(userRole === 'residente' || userRole === 'admin') && (
         <Tab.Screen name="QR" component={QRTabScreen} />
       )}
 

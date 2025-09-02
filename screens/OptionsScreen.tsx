@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Edit, Lock, Moon, Trash2, LogOut, ArrowLeft } from 'lucide-react-native';
+import { Edit, Lock, Moon, Trash2, LogOut } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProfile } from '../context/ProfileContext';
@@ -13,6 +13,11 @@ export default function OptionsScreen() {
   const navigation = useNavigation<any>();
   const { theme, themeType, toggleTheme } = useTheme();
   const { clearProfile } = useProfile();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem('userRole').then(setUserRole).catch(() => setUserRole(null));
+  }, []);
 
   const handleLogout = async () => {
     warning();
@@ -123,6 +128,26 @@ export default function OptionsScreen() {
           />
         </View>
       </Card>
+
+      {/* ✅ Acceso al Panel Admin solo para rol admin */}
+      {userRole === 'admin' && (
+        <>
+          <Card onPress={() => navigation.navigate('AdminVisits')}>
+            <View style={styles.row}>
+              <Edit color={theme.colors.primary} size={20} />
+              <Text style={[styles.rowText, { color: theme.colors.text }]}>Panel Admin</Text>
+            </View>
+          </Card>
+
+          {/* ✅ Nuevo acceso directo para crear visitante en nombre de un residente */}
+          <Card onPress={() => navigation.navigate('AdminCreateVisitante')}>
+            <View style={styles.row}>
+              <Edit color={theme.colors.primary} size={20} />
+              <Text style={[styles.rowText, { color: theme.colors.text }]}>Crear visitante (Admin)</Text>
+            </View>
+          </Card>
+        </>
+      )}
 
       <Card onPress={withHaptics(handleLogout, 'tap')}>
         <View style={[styles.row, { justifyContent: 'center' }]}>

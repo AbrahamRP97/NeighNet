@@ -25,6 +25,10 @@ import EditProfileScreen from './screens/EditProfileScreen';
 import ChangePasswordScreen from './screens/ChangePasswordScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
 import PhoneVerificationScreen from './screens/PhoneVerificationScreen';
+// ✅ Panel Admin
+import AdminVisitsScreen from './screens/AdminVisitsScreen';
+// ✅ NUEVO: Crear visitante (Admin)
+import AdminCreateVisitanteScreen from './screens/AdminCreateVisitanteScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -43,6 +47,9 @@ const linking = {
       ChangePasswordScreen: 'change-password',
       CrearVisitante: 'crear-visitante',
       QRGenerator: 'qr-generator',
+      // deep links admin (opcionales)
+      AdminVisits: 'admin/visitas',
+      AdminCreateVisitante: 'admin/crear-visitante',
     },
   },
   async getInitialURL() {
@@ -89,6 +96,9 @@ function AppContent() {
           <Stack.Screen name="EvidenceCapture" component={EvidenceCaptureScreen} />
           <Stack.Screen name="UserProfile" component={UserProfileScreen} />
           <Stack.Screen name="PhoneVerification" component={PhoneVerificationScreen} />
+          {/* Admin */}
+          <Stack.Screen name="AdminVisits" component={AdminVisitsScreen} />
+          <Stack.Screen name="AdminCreateVisitante" component={AdminCreateVisitanteScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
