@@ -5,8 +5,6 @@ import CustomButton from '../components/CustomButton';
 import { useRoute } from '@react-navigation/native';
 import { AUTH_BASE_URL } from '../api';
 import { useTheme } from '../context/ThemeContext';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import Card from '../components/Card';
 import ScreenBanner from '../components/ScreenBanner';
 

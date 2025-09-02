@@ -8,7 +8,7 @@ import { VISITANTES_BASE_URL } from '../api';
 import Card from '../components/Card';
 import { useTheme } from '../context/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
-import { withHaptics, warning, tap, success, error as hError } from '../utils/Haptics';
+import { withHaptics, warning, tap, success, error as hError } from '../utils/haptics';
 
 export default function CrearVisitanteScreen() {
   const navigation = useNavigation<any>();

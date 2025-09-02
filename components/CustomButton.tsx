@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, Text, StyleSheet, ViewStyle, TextStyle, Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { withHaptics } from '../utils/Haptics';
+import { withHaptics } from '../utils/haptics';
 
 interface Props {
   title: string;

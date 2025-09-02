@@ -2,11 +2,7 @@ import React from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import {
-  NavigationContainer,
-  DefaultTheme as NavLightTheme,
-  DarkTheme as NavDarkTheme,
-} from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme as NavLightTheme, DarkTheme as NavDarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import * as Linking from 'expo-linking';
 import EvidenceCaptureScreen from './screens/EvidenceCaptureScreen';
@@ -25,9 +21,7 @@ import EditProfileScreen from './screens/EditProfileScreen';
 import ChangePasswordScreen from './screens/ChangePasswordScreen';
 import UserProfileScreen from './screens/UserProfileScreen';
 import PhoneVerificationScreen from './screens/PhoneVerificationScreen';
-// ✅ Panel Admin
 import AdminVisitsScreen from './screens/AdminVisitsScreen';
-// ✅ NUEVO: Crear visitante (Admin)
 import AdminCreateVisitanteScreen from './screens/AdminCreateVisitanteScreen';
 
 const Stack = createNativeStackNavigator();

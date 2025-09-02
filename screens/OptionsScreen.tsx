@@ -5,7 +5,7 @@ import { Edit, Lock, Moon, Trash2, LogOut } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useProfile } from '../context/ProfileContext';
-import { withHaptics, select, warning, success } from '../utils/Haptics';
+import { withHaptics, select, warning, success } from '../utils/haptics';
 import Card from '../components/Card';
 import ScreenBanner from '../components/ScreenBanner';
 

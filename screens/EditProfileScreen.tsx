@@ -10,7 +10,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useProfile } from '../context/ProfileContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import Card from '../components/Card';
-import { withHaptics, success, warning, tap, error as hError } from '../utils/Haptics';
+import { withHaptics, success, warning, tap, error as hError } from '../utils/haptics';
 
 type PickedAsset = { uri: string; mimeType?: string | null; fileName?: string | null; };
 

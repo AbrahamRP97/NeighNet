@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Alert, View, TextInput, ActivityIndicator, Pressable, } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Alert, View, TextInput, ActivityIndicator, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Card from '../components/Card';
 import CustomInput from '../components/CustomInput';
@@ -8,7 +8,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
 import { ADMIN_BASE_URL, VISITANTES_BASE_URL } from '../api';
 import ScreenBanner from '../components/ScreenBanner';
-import { select, tap, warning, success } from '../utils/Haptics';
+import { select, tap, warning, success } from '../utils/haptics';
 
 type Resident = {
   id: string;
@@ -66,10 +66,9 @@ export default function AdminCreateVisitanteScreen() {
     if (!token) return;
     setLoadingResidents(true);
     try {
-      // Endpoint esperado: GET /api/admin/residents?query=...
-      // Debe devolver: [{ id, nombre, numero_casa, correo }, ...]
       const base = ADMIN_BASE_URL || 'https://neighnet-backend.onrender.com/api/admin';
-      const url = `${base}/residents${q ? `?query=${encodeURIComponent(q)}` : ''}`;
+      // ✅ endpoint correcto y respuesta { items: [...] }
+      const url = `${base}/residentes${q ? `?q=${encodeURIComponent(q)}` : ''}`;
       const res = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
@@ -79,10 +78,10 @@ export default function AdminCreateVisitanteScreen() {
       const text = await res.text();
       const data = text ? JSON.parse(text) : null;
       if (!res.ok) {
-        Alert.alert('Error', data?.error || 'No se pudieron cargar los residentes');
+        Alert.alert('Error', data?.error || 'No se pudieron listar residentes');
         setResidents([]);
       } else {
-        setResidents(Array.isArray(data) ? data : []);
+        setResidents(Array.isArray(data?.items) ? data.items : []);
       }
     } catch {
       Alert.alert('Error', 'No se pudo conectar con el servidor');
@@ -135,11 +134,13 @@ export default function AdminCreateVisitanteScreen() {
         marca_vehiculo: marca,
         modelo_vehiculo: modelo,
         color_vehiculo: color,
-        // clave especial que tu backend ya acepta si el rol es admin:
+        // clave especial: el backend de admin la acepta
         residente_id: selectedResident!.id,
       };
 
-      const res = await fetch(VISITANTES_BASE_URL, {
+      // ✅ usa el endpoint de admin (no el de residentes)
+      const base = ADMIN_BASE_URL || 'https://neighnet-backend.onrender.com/api/admin';
+      const res = await fetch(`${base}/visitantes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,7 +159,6 @@ export default function AdminCreateVisitanteScreen() {
 
       success();
       Alert.alert('Éxito', 'Visitante creado correctamente', [
-        // Si tienes AdminVisitsScreen, puedes redirigir allá:
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
 

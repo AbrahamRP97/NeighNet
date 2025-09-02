@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Image, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, FlatList, Pressable, Image, Modal, Alert, Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { ADMIN_BASE_URL } from '../api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -7,6 +7,7 @@ import Card from '../components/Card';
 import CustomButton from '../components/CustomButton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 type Item = {
   id: string;
@@ -57,7 +58,7 @@ export default function AdminVisitsScreen() {
     if (s === 'missing_placa') return { label: 'Falta placa', bg: '#FEF3C7', fg: '#92400E' };
     if (s === 'pending') return { label: 'Pendiente', bg: '#FEE2E2', fg: '#991B1B' };
     return { label: '—', bg: '#E5E7EB', fg: '#374151' };
-    };
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -78,7 +79,7 @@ export default function AdminVisitsScreen() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        Alert.alert('Error', data?.error || 'No se pudo cargar');
+        Alert.alert('Error', data?.error || 'No se pudieron cargar las visitas');
         setLoading(false);
         return;
       }
@@ -120,7 +121,6 @@ export default function AdminVisitsScreen() {
           🛡️ Guardia: {item.guard?.nombre || '—'}
         </Text>
 
-        {/* Evidencia */}
         {item.tipo === 'Entrada' && (
           <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
             <Pressable
@@ -160,18 +160,20 @@ export default function AdminVisitsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Banner */}
       <LinearGradient
         colors={[theme.colors.primary, theme.colors.accent]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-        style={styles.banner}
+        style={[styles.banner, { paddingTop: Platform.select({ ios: 28, android: 18 }) }]}
       >
+        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={22} color="#fff" />
+        </Pressable>
         <Text style={styles.bannerTitle}>Panel Admin · Visitas</Text>
       </LinearGradient>
 
-      {/* Filtros */}
       <Card style={{ marginBottom: 12 }}>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        {/* fila 1: rango */}
+        <View style={styles.filtersRow}>
           {(['today', '7d', '30d'] as Range[]).map(r => (
             <Pressable
               key={r}
@@ -187,7 +189,8 @@ export default function AdminVisitsScreen() {
             </Pressable>
           ))}
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+        {/* fila 2: estado + acciones (wrap si no entra) */}
+        <View style={styles.filtersRow}>
           {(['all', 'pending', 'complete'] as Estado[]).map(s => (
             <Pressable
               key={s}
@@ -203,8 +206,7 @@ export default function AdminVisitsScreen() {
             </Pressable>
           ))}
 
-          {/* 👉 Botonera derecha: Crear visitante + Actualizar */}
-          <View style={{ marginLeft: 'auto', flexDirection: 'row', gap: 8 }}>
+          <View style={styles.actionsRow}>
             <CustomButton
               title="Crear visitante"
               onPress={() => navigation.navigate('AdminCreateVisitante')}
@@ -227,7 +229,6 @@ export default function AdminVisitsScreen() {
         />
       )}
 
-      {/* Modal imagen evidencia */}
       <Modal visible={!!modalImg} transparent animationType="fade" onRequestClose={() => setModalImg(null)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setModalImg(null)}>
           {modalImg && <Image source={{ uri: modalImg }} style={styles.modalImg} resizeMode="contain" />}
@@ -239,8 +240,31 @@ export default function AdminVisitsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  banner: { borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 12 },
-  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center' },
+  banner: { borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 12, position: 'relative' },
+  backBtn: {
+    position: 'absolute', left: 12, top: 12,
+    width: 32, height: 32, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)'
+  },
+  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center', marginTop: 8 },
+
+  filtersRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: 8,
+    rowGap: 8,
+    marginBottom: 8,
+  },
+  actionsRow: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    columnGap: 8,
+    rowGap: 8,
+    flexShrink: 1,
+  },
+
   chip: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1 },
   thumb: { width: 92, height: 92, borderRadius: 10, borderWidth: 1, alignItems: 'center', justifyContent: 'center', padding: 4 },
   thumbImg: { width: '100%', height: '100%', borderRadius: 8 },

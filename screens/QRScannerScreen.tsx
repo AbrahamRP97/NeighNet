@@ -8,7 +8,7 @@ import { VIGILANCIA_BASE_URL } from '../api';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../context/ThemeContext';
-import { tap, success, warning, error as hError } from '../utils/Haptics';
+import { tap, success, warning, error as hError } from '../utils/haptics';
 import * as ScreenCapture from 'expo-screen-capture';
 
 type FeedbackType = 'success' | 'error' | null;

@@ -11,7 +11,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useProfile } from '../context/ProfileContext';
 import ShimmerPlaceHolder from 'react-native-shimmer-placeholder';
 import { LinearGradient } from 'expo-linear-gradient';
-import { withHaptics, tap, select, success, warning, error as hError } from '../utils/Haptics';
+import { withHaptics, tap, select, success, warning, error as hError } from '../utils/haptics';
 
 interface Props {
   userName: string;

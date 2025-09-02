@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
 
   closeBtn: {
     position: 'absolute',
-    top: 14, // un poco más abajo para no quedar pegado al borde
+    top: 14,
     right: 12,
     zIndex: 10,
     padding: 8,
