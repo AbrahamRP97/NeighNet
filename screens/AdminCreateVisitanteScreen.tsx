@@ -57,8 +57,6 @@ export default function AdminCreateVisitanteScreen() {
         ]);
         return;
       }
-      // carga inicial sin filtro
-      fetchResidents('');
     })();
   }, []);
 
@@ -90,6 +88,12 @@ export default function AdminCreateVisitanteScreen() {
       setLoadingResidents(false);
     }
   };
+
+  useEffect(() => {
+    if (role === 'admin' && token) {
+    fetchResidents('');
+    }
+  }, [role, token]);
 
   // debounce de búsqueda
   useEffect(() => {
