@@ -77,12 +77,15 @@ export default function AdminVisitsScreen() {
       const res = await fetch(url.toString(), {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        Alert.alert('Error', data?.error || 'No se pudieron cargar las visitas');
-        setLoading(false);
-        return;
-      }
+      const txt = await res.text();
+        let data: any = null;
+        try { data = txt ? JSON.parse(txt) : null; } catch {}
+        if (!res.ok) {
+          console.log('[AdminVisits] status:', res.status, 'body:', txt);
+          Alert.alert('Error', data?.error || 'No se pudieron cargar las visitas');
+          setLoading(false);
+          return;
+        }
       setItems(Array.isArray(data?.items) ? data.items : []);
     } catch {
       Alert.alert('Error', 'Fallo de conexión');
