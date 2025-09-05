@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { ScrollView, View, Text, StyleSheet, Alert, Image } from 'react-native';
+import { ScrollView, View, Text, StyleSheet, Alert, Image, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import QRCode from 'react-native-qrcode-svg';
 import CustomButton from '../components/CustomButton';
@@ -37,10 +37,9 @@ export default function QRGeneratorScreen() {
   const visitante: Visitante | undefined = route.params?.visitante;
 
   const badgeRef = useRef<View>(null);
-  const invisibleBadgeRef = useRef<View>(null);
   const qrRef = useRef<any>(null);
+
   const [qrValue, setQrValue] = useState('');
-  const [qrBase64, setQrBase64] = useState<string | null>(null);
   const [nombre, setNombre] = useState('');
   const [numeroCasa, setNumeroCasa] = useState('');
   const [mensajeQR, setMensajeQR] = useState('');
@@ -48,7 +47,6 @@ export default function QRGeneratorScreen() {
 
   const { theme } = useTheme();
 
-  // 🔒 Bloqueo de capturas mientras esta pantalla está enfocada
   useFocusEffect(
     useCallback(() => {
       let sub: any;
@@ -135,7 +133,6 @@ export default function QRGeneratorScreen() {
       const data = raw ? JSON.parse(raw) : null;
       if (!res.ok) return null;
 
-      // Aceptamos varios formatos de respuesta comunes
       const envelope: Envelope =
         data?.envelope ?? data?.env ?? data?.qrEnvelope ?? null;
 
@@ -160,21 +157,21 @@ export default function QRGeneratorScreen() {
       return;
     }
 
+    if (loadingQR) return;
+
     setLoadingQR(true);
-    setQrBase64(null);
     setQrValue('');
+    setMensajeQR('');
 
     // 1) Intentar modo firmado
     const signed = await tryCreateSignedPass();
 
     if (signed?.envelope) {
-      // QR FIRMA: compactamos con una estructura mínima y versionada
       const qrPayload = JSON.stringify({
         v: 2,
-        typ: 'NNP/1', // tipo propio (NeighNet Pass v1)
-        envelope: signed.envelope, // puede ser string o { alg, kid, payload, sig }
+        typ: 'NNP/1',
+        envelope: signed.envelope,
       });
-
       setQrValue(qrPayload);
 
       const expText =
@@ -201,31 +198,37 @@ export default function QRGeneratorScreen() {
       );
     }
 
-    // Convertimos a base64 cuando el QR esté listo
-    setTimeout(() => {
-      if (qrRef.current) {
-        qrRef.current.toDataURL((data: string) => {
-          setQrBase64(data);
-          setLoadingQR(false);
-        });
-      } else {
-        setLoadingQR(false);
-      }
-    }, 500);
+    // Esperar a que React pinte el QR antes de permitir compartir
+    InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => setLoadingQR(false), 150);
+    });
   };
 
   const handleCompartirBadge = async () => {
-    if (!qrBase64) {
+    // Ahora validamos que el QR esté renderizado (no dependemos de qrBase64)
+    if (!qrValue || loadingQR || !badgeRef.current) {
       Alert.alert('Primero genera el pase y espera que aparezca el QR');
       return;
     }
+
     try {
-      const uri = await captureRef(invisibleBadgeRef, { format: 'png', quality: 1 });
-      await Sharing.shareAsync(uri, {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        Alert.alert('No disponible', 'Compartir no está disponible en este dispositivo.');
+        return;
+      }
+
+      const uri = await captureRef(badgeRef, {
+        format: 'png',
+        quality: 1,
+        result: 'tmpfile',
+      });
+
+      await Sharing.shareAsync(uri as string, {
         mimeType: 'image/png',
         dialogTitle: 'Compartir pase de visitante',
       });
-    } catch {
+    } catch (e) {
       Alert.alert('Error', 'No se pudo compartir el pase');
     }
   };
@@ -280,7 +283,6 @@ export default function QRGeneratorScreen() {
             <Image source={require('../assets/image.png')} style={styles.logo} />
             <Text style={[styles.badgeTitle, { color: theme.colors.primary }]}>NEIGHNET</Text>
 
-            {/* Shimmer mientras generamos/convertimos */}
             {loadingQR ? (
               <ShimmerPlaceHolder
                 LinearGradient={LinearGradient}
@@ -300,32 +302,11 @@ export default function QRGeneratorScreen() {
             <Text style={[styles.badgeMessage, { color: theme.colors.text }]}>{mensajeQR}</Text>
           </View>
 
-          <CustomButton title="Compartir pase" onPress={handleCompartirBadge} />
+          <CustomButton
+            title={loadingQR ? 'Generando…' : 'Compartir pase'}
+            onPress={handleCompartirBadge}
+          />
         </Card>
-      )}
-
-      {/* Badge invisible para compartir */}
-      {qrBase64 && (
-        <View
-          ref={invisibleBadgeRef}
-          style={[
-            styles.badge,
-            {
-              position: 'absolute',
-              top: -1000,
-              left: -1000,
-              opacity: 0,
-              backgroundColor: theme.colors.card,
-              borderColor: theme.colors.primary,
-            }
-          ]}
-          collapsable={false}
-        >
-          <Image source={require('../assets/image.png')} style={styles.logo} />
-          <Text style={[styles.badgeTitle, { color: theme.colors.primary }]}>NEIGHNET</Text>
-          <Image source={{ uri: `data:image/png;base64,${qrBase64}` }} style={{ width: 180, height: 180 }} />
-          <Text style={[styles.badgeMessage, { color: theme.colors.text }]}>{mensajeQR}</Text>
-        </View>
       )}
 
       <CustomButton title="Volver" onPress={() => navigation.goBack()} />

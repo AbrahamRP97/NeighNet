@@ -6,7 +6,7 @@ import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../context/ThemeContext';
-import { ADMIN_BASE_URL, VISITANTES_BASE_URL } from '../api';
+import { ADMIN_BASE_URL } from '../api';
 import ScreenBanner from '../components/ScreenBanner';
 import { select, tap, warning, success } from '../utils/haptics';
 
@@ -65,7 +65,6 @@ export default function AdminCreateVisitanteScreen() {
     setLoadingResidents(true);
     try {
       const base = ADMIN_BASE_URL || 'https://neighnet-backend.onrender.com/api/admin';
-      // ✅ endpoint correcto y respuesta { items: [...] }
       const url = `${base}/residentes${q ? `?q=${encodeURIComponent(q)}` : ''}`;
       const res = await fetch(url, {
         headers: {
@@ -91,7 +90,7 @@ export default function AdminCreateVisitanteScreen() {
 
   useEffect(() => {
     if (role === 'admin' && token) {
-    fetchResidents('');
+      fetchResidents('');
     }
   }, [role, token]);
 
@@ -138,11 +137,9 @@ export default function AdminCreateVisitanteScreen() {
         marca_vehiculo: marca,
         modelo_vehiculo: modelo,
         color_vehiculo: color,
-        // clave especial: el backend de admin la acepta
         residente_id: selectedResident!.id,
       };
 
-      // ✅ usa el endpoint de admin (no el de residentes)
       const base = ADMIN_BASE_URL || 'https://neighnet-backend.onrender.com/api/admin';
       const res = await fetch(`${base}/visitantes`, {
         method: 'POST',
@@ -166,7 +163,6 @@ export default function AdminCreateVisitanteScreen() {
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
 
-      // limpia el formulario (opcional)
       setNombre('');
       setIdentidad('');
       setPlaca('');
@@ -187,6 +183,8 @@ export default function AdminCreateVisitanteScreen() {
       keyboardVerticalOffset={100}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        
+        <View style={styles.headerSpacer} />
         <ScreenBanner title="Crear visitante (Admin)" onBack={() => navigation.goBack()} />
 
         {/* Selector de RESIDENTE */}
@@ -277,6 +275,7 @@ export default function AdminCreateVisitanteScreen() {
 const makeStyles = (theme: any) =>
   StyleSheet.create({
     container: { flexGrow: 1, padding: 24, backgroundColor: theme.colors.background },
+    headerSpacer: { height: 16 },
     sectionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
     searchInput: {
       borderWidth: 1,

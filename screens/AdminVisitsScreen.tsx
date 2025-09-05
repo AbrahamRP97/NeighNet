@@ -78,14 +78,14 @@ export default function AdminVisitsScreen() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tk}` },
       });
       const txt = await res.text();
-        let data: any = null;
-        try { data = txt ? JSON.parse(txt) : null; } catch {}
-        if (!res.ok) {
-          console.log('[AdminVisits] status:', res.status, 'body:', txt);
-          Alert.alert('Error', data?.error || 'No se pudieron cargar las visitas');
-          setLoading(false);
-          return;
-        }
+      let data: any = null;
+      try { data = txt ? JSON.parse(txt) : null; } catch {}
+      if (!res.ok) {
+        console.log('[AdminVisits] status:', res.status, 'body:', txt);
+        Alert.alert('Error', data?.error || 'No se pudieron cargar las visitas');
+        setLoading(false);
+        return;
+      }
       setItems(Array.isArray(data?.items) ? data.items : []);
     } catch {
       Alert.alert('Error', 'Fallo de conexión');
@@ -163,15 +163,27 @@ export default function AdminVisitsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <View style={styles.headerSpacer} />
+
       <LinearGradient
         colors={[theme.colors.primary, theme.colors.accent]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
         style={[styles.banner, { paddingTop: Platform.select({ ios: 28, android: 18 }) }]}
       >
-        <Pressable onPress={() => navigation.goBack()} hitSlop={10} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
-        </Pressable>
-        <Text style={styles.bannerTitle}>Panel Admin · Visitas</Text>
+
+        <View style={styles.bannerRow}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={20}
+            style={styles.backBtn}
+          >
+            <Ionicons name="arrow-back" size={22} color="#fff" />
+          </Pressable>
+
+          <Text style={styles.bannerTitle} numberOfLines={1}>Panel Admin · Visitas</Text>
+
+          <View style={styles.backBtn} />
+        </View>
       </LinearGradient>
 
       <Card style={{ marginBottom: 12 }}>
@@ -192,7 +204,7 @@ export default function AdminVisitsScreen() {
             </Pressable>
           ))}
         </View>
-        {/* fila 2: estado + acciones (wrap si no entra) */}
+        {/* fila 2: estado + acciones */}
         <View style={styles.filtersRow}>
           {(['all', 'pending', 'complete'] as Estado[]).map(s => (
             <Pressable
@@ -243,13 +255,26 @@ export default function AdminVisitsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  banner: { borderRadius: 16, paddingVertical: 14, paddingHorizontal: 16, marginBottom: 12, position: 'relative' },
-  backBtn: {
-    position: 'absolute', left: 12, top: 12,
-    width: 32, height: 32, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.15)'
+
+  headerSpacer: { height: 24},
+
+  banner: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
-  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center', marginTop: 8 },
+  bannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  backBtn: {
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  bannerTitle: { color: '#fff', fontWeight: '800', fontSize: 18, textAlign: 'center' },
 
   filtersRow: {
     flexDirection: 'row',

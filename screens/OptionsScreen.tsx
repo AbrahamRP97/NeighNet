@@ -97,7 +97,7 @@ export default function OptionsScreen() {
       contentContainerStyle={[styles.container, { backgroundColor: theme.colors.background }]}
       keyboardShouldPersistTaps="handled"
     >
-      {/* Banner con gradiente y back */}
+      <View style={styles.headerSpacer} />
       <ScreenBanner title="Configuración" onBack={() => navigation.goBack()} />
 
       {/* Opciones como Cards */}
@@ -122,14 +122,14 @@ export default function OptionsScreen() {
           <Switch
             style={{ marginLeft: 'auto' }}
             value={themeType === 'dark'}
-            onValueChange={() => { select(); toggleTheme()}}
+            onValueChange={() => { select(); toggleTheme(); }}
             trackColor={{ false: theme.colors.placeholder, true: theme.colors.primary }}
             thumbColor={theme.colors.card}
           />
         </View>
       </Card>
 
-      {/* ✅ Acceso al Panel Admin solo para rol admin */}
+      {/* Panel Admin solo para admin */}
       {userRole === 'admin' && (
         <>
           <Card onPress={() => navigation.navigate('AdminVisits')}>
@@ -139,7 +139,6 @@ export default function OptionsScreen() {
             </View>
           </Card>
 
-          {/* ✅ Nuevo acceso directo para crear visitante en nombre de un residente */}
           <Card onPress={() => navigation.navigate('AdminCreateVisitante')}>
             <View style={styles.row}>
               <Edit color={theme.colors.primary} size={20} />
@@ -169,6 +168,8 @@ export default function OptionsScreen() {
 
 const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: 24 },
+  headerSpacer: { height: 16 },
+
   banner: {
     borderRadius: 20,
     paddingVertical: 18,
