@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Alert, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
+import { StyleSheet, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import CustomInput from '../components/CustomInput';
 import CustomButton from '../components/CustomButton';
 import { AUTH_BASE_URL } from '../api';
 import { useTheme } from '../context/ThemeContext';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import Card from '../components/Card';
 import ScreenBanner from '../components/ScreenBanner';
+import NetInfo from '@react-native-community/netinfo';
 
 export default function ForgotPasswordScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -15,41 +14,81 @@ export default function ForgotPasswordScreen({ navigation }: any) {
   const { theme } = useTheme();
   const styles = makeStyles(theme);
 
+  const validarCorreo = (correo: string) => /\S+@\S+\.\S+/.test(correo);
+
+  const parseJsonSafe = (text: string) => {
+    try {
+      return text ? JSON.parse(text) : null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleSendRecovery = async () => {
-    if (!email.includes('@')) {
-      Alert.alert('Correo inválido');
+    // 1) Chequeo de red (evita errores falsos)
+    const net = await NetInfo.fetch();
+    if (!net.isConnected) {
+      Alert.alert('Sin conexión', 'Activa tus datos o Wi-Fi antes de continuar.');
+      return;
+    }
+
+    // 2) Validación básica del correo
+    if (!validarCorreo(email)) {
+      Alert.alert('Correo inválido', 'Ingresa un correo electrónico válido.');
       return;
     }
 
     setLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000); // 12s
+
     try {
-      const response = await fetch(`${AUTH_BASE_URL}/forgot-password`, {
+      const res = await fetch(`${AUTH_BASE_URL}/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: email }),
+        body: JSON.stringify({ correo: email.trim() }),
+        signal: controller.signal,
       });
 
-      const data = await response.json();
+      const text = await res.text();
+      const data = parseJsonSafe(text) || {};
 
-      if (!response.ok) {
-        Alert.alert('Error', data.error || 'No se pudo enviar el correo');
-      } else {
-        Alert.alert('Revisa tu correo', 'Hemos enviado un enlace de recuperación. Ábrelo desde tu dispositivo móvil.');
-        navigation.goBack();
+      if (!res.ok) {
+        // Casos comunes: 429 (rate limiter) o 500/502 (hosting)
+        if (res.status === 429) {
+          Alert.alert(
+            'Demasiadas solicitudes',
+            data.error || 'Has solicitado demasiados correos en poco tiempo. Intenta más tarde.'
+          );
+          return;
+        }
+        // Si el backend devolvió HTML/otro formato, evitamos catch y damos un mensaje claro
+        Alert.alert('Error', data.error || `No se pudo enviar el correo (código ${res.status}).`);
+        return;
       }
-    } catch {
-      Alert.alert('Error de conexión');
+
+      // Éxito
+      Alert.alert(
+        'Revisa tu correo',
+        'Hemos enviado un enlace de recuperación. Ábrelo desde tu dispositivo móvil.'
+      );
+      navigation.goBack();
+    } catch (e: any) {
+      // Abort/timeout u otros errores de red/DNS
+      if (e?.name === 'AbortError') {
+        Alert.alert('Tiempo de espera agotado', 'Inténtalo de nuevo en unos segundos.');
+      } else {
+        Alert.alert('Error de conexión', 'No se pudo conectar al servidor.');
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      {/* Banner */}
-       <ScreenBanner title="Recuperar contraseña" onBack={() => navigation.goBack()} />
-
-      {/* Card con el formulario */}
+      <ScreenBanner title="Recuperar contraseña" onBack={() => navigation.goBack()} />
       <Card>
         <CustomInput
           placeholder="Correo electrónico"
@@ -57,7 +96,6 @@ export default function ForgotPasswordScreen({ navigation }: any) {
           onChangeText={setEmail}
           keyboardType="email-address"
         />
-
         {loading ? (
           <ActivityIndicator color={theme.colors.primary} style={{ marginVertical: 20 }} />
         ) : (
@@ -78,21 +116,5 @@ const makeStyles = (theme: any) =>
       flexGrow: 1,
       backgroundColor: theme.colors.background,
       justifyContent: 'center',
-    },
-    banner: {
-      borderRadius: 20,
-      paddingVertical: 18,
-      paddingHorizontal: 16,
-      marginBottom: 16,
-    },
-    bannerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    bannerTitle: { color: '#fff', fontSize: 20, fontWeight: '800' },
-    bannerBack: {
-      width: 28,
-      height: 28,
-      alignItems: 'center',
-      justifyContent: 'center',
-      borderRadius: 14,
-      backgroundColor: 'rgba(255,255,255,0.18)',
     },
   });
